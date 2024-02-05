@@ -31,6 +31,7 @@ pub trait Listener<
 {
     type Parser: Parser;
     type SymbolHander: SymbolHandler;
+    /// Consumes the listener's read and writestreams for use.
     fn split(self) -> (R, W);
     async fn listen(self, sender: UnboundedSender<DataPacket>) -> JoinHandle<Result<(), Error>> {
         let (mut r, _) = self.split();
@@ -61,8 +62,8 @@ pub trait Listener<
         let url_result = Url::parse(websocket_url);
         let url = match url_result {
             Ok(url) => url,
-            Err(e) => {
-                let error_msg = format!("URL parse error: {}", e);
+            Err(err) => {
+                let error_msg = format!("URL parse error: {err}");
                 return Err(TungsteniteError::Io(std::io::Error::new(
                     std::io::ErrorKind::Other,
                     error_msg,
@@ -72,20 +73,22 @@ pub trait Listener<
 
         let (socket, _) = connect_async(url).await?;
         let (write, read) = socket.split();
-        Ok((write, read))
+        return Ok((write, read));
     }
 }
 
 /// The Parser trait is custom implemented for each exchange and endpoint.
-/// It returns a Result, either containing a valid DataPacket to be sent to the buffer
-/// or a ParseError due to invalid data in the message.
+/// It returns a Result, either containing a valid `DataPacket` to be sent to the buffer
+/// or a `ParseError` due to invalid data in the message.
 pub trait Parser {
+    /// Parses a tungstenite Message and returns a `DataPacket` if successful or a `ParseError`
+    /// if an error was occurred.
     fn parse(message: Message) -> Result<DataPacket, ParseError>;
 }
 
-/// The SymbolHandler trait is custom implemented for each exchange and endpoint.
+/// The `SymbolHandler` trait is custom implemented for each exchange and endpoint.
 /// It returns a Result, containing either a valid Value that can be sent to subscribe
-/// to all symbols or a SymbolError.
+/// to all symbols or a `SymbolError`.
 pub trait SymbolHandler {
     async fn get_symbols() -> Result<Value, SymbolError>;
 }

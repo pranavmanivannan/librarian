@@ -15,7 +15,9 @@ use tungstenite::Message;
 
 use super::listener::{Listener, Parser, SymbolHandler};
 
+/// The websocket url used to connect to ByBit's perpetuals and futures market data.
 const BYBIT_WS: &str = "wss://stream.bybit.com/v5/public/linear";
+/// The http url used to request all symbols on ByBit's market.
 const BYBIT_SYMBOL_API: &str = "https://api-testnet.bybit.com/v5/market/tickers?category=linear";
 
 pub struct ByBitListener<
@@ -129,10 +131,10 @@ impl SymbolHandler for ByBitSymbolHandler {
 
         let mut symbol_list: Vec<String> = Vec::new();
         for symbol in symbol_pairs {
-            symbol_list.push(format!("orderbook.50.{}", symbol));
+            symbol_list.push(format!("orderbook.50.{symbol}"));
         }
 
-        symbol_list.retain(|s| s != "orderbook.50.OKBUSDT");
+        symbol_list.retain(|symbol| symbol != "orderbook.50.OKBUSDT");
 
         log::info!("ByBit - Successfully retrieved all symbols!");
 
@@ -140,8 +142,6 @@ impl SymbolHandler for ByBitSymbolHandler {
             "op": "subscribe",
             "args": symbol_list,
         });
-
-        println!("{}", symbols);
 
         Ok(symbols)
     }

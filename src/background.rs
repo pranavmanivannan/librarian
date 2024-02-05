@@ -1,6 +1,6 @@
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use crate::{buffer::Buffer, data_packet::{self, DataPacket}};
+use crate::{buffer::Buffer, data_packet::DataPacket};
 
 pub async fn storage_loop(mut buffer: Buffer, mut receiver: UnboundedReceiver<DataPacket>) {
     loop {

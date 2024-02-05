@@ -1,5 +1,5 @@
 use reqwest::StatusCode;
-use std::fmt;
+use std::{fmt, num::ParseFloatError};
 
 #[derive(Debug)]
 pub enum SymbolError {
@@ -91,7 +91,7 @@ impl From<serde_json::Error> for ParseErr {
 
 impl From<std::num::ParseFloatError> for ParseErr {
     fn from(error: std::num::ParseFloatError) -> Self {
-        let _ = error;
+        let _: ParseFloatError = error;
         ParseErr {
             message: "parse float error",
         }

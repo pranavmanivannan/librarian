@@ -1,36 +1,29 @@
 # data-storage
 Multi-exchange market data ingestion and storage service.
 
-## Internal Engine
+## Storage System
 The data storage system has two core components:
-- Listeners
-- Buffers
+- `Listener`
+- `Buffer`
 
-The core of the system revolves around spawning in listeners which will be put into tokio tasks
-to continuously run. Each listener will be subscribed to one or more exchange endpoints. For example,
-the Huobi Market Listener can be subscribed to both the Market Incremental and Market Snapshot endpoints.
-These listeners will send DataPackets over a channel to a buffer running in another tokio task, where these buffers
-will possibly sort the messages. Once a buffer is full, the buffer will send all data inside of it to InfluxDB and
-clear itself, allowing for more messages to be stored.
+The core of the system revolves around the following loop:
+1) Spawn in multiple listeners which implement the `Listener` trait.
+2) Subscribe each listener to one or more exchange endpoints to asynchronously receive messages from the exchange. (i.e. the `HuobiListener` will be subscribed to both `MarketIncremental` and `Snapshot` data).
+3) Each listener will send serialize `DataPacket` structs from the messages they receive and send them over a `channel` to a `Buffer` running in another tokio task.
+4) Once a `Buffer` is full, the `Buffer` will send all data inside of it to InfluxDB and clear itself, allowing for more messages to be stored.
 
-### Main
-```rust
-/// Sets up a logger and corresponding log file, then spawns in listeners and buffers.
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {}
-```
+## Implementation Details
+- On startup, the system will initially spawn in multiple `mpsc::channel` to be used.
+- Afterwards, the system will spawn in multiple listeners and consume the `UnboundedSender` spawned in by the channel. Each listener will connect to a set of endpoints and symbols.
+- These listeners are of the type `tokio::task::JoinHandle`, and each listener will be awaited on within a `tokio::task`.
+  - In the case a connection dies within a task, the loop will create a new task and respawn the listener task before awaiting it.
+- Alongside these listeners, there will be a `Buffer` spawned in for each listener, consuming the `UnboundedReceiver` end of the channels.
+- These buffers will continuously poll from the channels and call `ingest` on the received `DataPacket`. If a `Buffer` is full, it will call `push_to_influx` and send all data currently in that buffer to InfluxDB before clearing the buffer.
 
 ### Listener
 ```rust
 /// The main trait of the data storage system. It holds associated types to a SymbolHandler
 /// and Parser, each of which correspond to their own trait.
-///
-/// Using split() will consumes the read and write streams spawned in by the listener.
-///
-/// Calling listen() will spawn a tokio task that can be awaited on. The task will asynchronously poll
-/// from the websocket readstream and send the data to the corresponding exchange's buffer.
-///
-/// Calling connect() returns a split socket stream, the write and read streams respectively.
 #[async_trait]
 pub trait Listener<
     R: Stream<Item = Result<Message, Error>> + Unpin + Send + 'static,
@@ -43,7 +36,7 @@ pub trait Listener<
     async fn listen(self, sender: UnboundedSender<DataPacket>) -> JoinHandle<Result<(), Error>> {
         let (mut r, _) = self.split();
         tokio::spawn(async move {
-            /// loops while we get messages
+            /// asynchronously receives messages and parses them
         })
     }
 
@@ -55,21 +48,17 @@ pub trait Listener<
             SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
         ),
         Error,
-    > {
-        /// to implement
-    }
+    >
 }
 
-/// The Parser trait is custom implemented for each exchange and endpoint.
-/// It returns a Result, either containing a valid DataPacket to be sent to the buffer
-/// or a ParseError due to invalid data in the message.
+/// The Parser trait contains the singular parse function which is custom implemented
+/// for each exchange and endpoint.
 pub trait Parser {
     fn parse(message: Message) -> Result<DataPacket, ParseError>;
 }
 
-/// The SymbolHandler trait is custom implemented for each exchange and endpoint.
-/// It returns a Result, containing either a valid Value that can be sent to subscribe
-/// to all symbols or a SymbolError.
+/// The SymbolHandler trait contains the get_symbols method which is custom implemented
+/// for each exchange and endpoint.
 pub trait SymbolHandler {
     async fn get_symbols() -> Result<Value, SymbolError>;
 }
@@ -88,7 +77,9 @@ pub enum DataPacket {
     Invalid,   // for invalid data, such as missing sequence number
 }
 
-
+/// The Snapshot struct contains the symbol-pair of the coin being traded, as well as the top 5 asks and bids.
+/// Additionally, it contains the current and previous sequence numbers to be used to keep track of the orderbook.
+/// The timestamp field represents the timestamp given by the orderbook when it generated this snapshot.
 pub struct Snapshot {
     pub symbol_pair: String,
     pub asks: Vec<Value>,
@@ -131,7 +122,11 @@ pub enum DBError {
 
 
 ### Buffers
-6 buffers: Huobi, Bybit, and Binance; Market incrementals and snapshots for each
+There are currently 3 exchanges, Huobi, Bybit, and Binance.
+The current implementation will require 6 buffers to store both Market Incremental and Snapshot data for each.
+
+- TODO: Possibly make each buffer contain multiple vectors instead and sort the data within the buffer per exchange.
+
 ```rust
 /// A struct for making a buffer
 pub struct Buffer {

@@ -25,6 +25,9 @@ pub trait Listener<
     type Parser: Parser;
     type SymbolHander: SymbolHandler;
     /// Consumes the listener's read and writestreams for use.
+    ///
+    /// # Returns
+    /// The read and writestreams of the listener.
     fn split(self) -> (R, W);
 
     /// Uses the consumed read and writestreams to receive messages from the websocket stream and then
@@ -58,7 +61,7 @@ pub trait Listener<
     /// # Arguments
     /// * `websocket_url` - A &str containing a valid websocket url to connect to.
     ///
-    /// Returns
+    /// # Returns
     /// Two halves of a WebSocketStream.
     async fn connect(
         websocket_url: &str,
@@ -90,15 +93,22 @@ pub trait Listener<
 /// The `Parser` trait contains the singular parse function that is custom implemented
 /// for each exchange and endpoint.
 pub trait Parser {
-    /// Parses a tungstenite Message and returns a `DataPacket` if successful or a `ParseError`
-    /// if an error was occurred.
+    /// Parses a tungstenite Message.
+    ///
+    /// # Arguments
+    /// * `message` - A message of the `Message` type
+    ///
+    /// # Returns
+    /// A Result containing a `DataPacket` if parsing was successful, else a `ParseError`.
     fn parse(message: Message) -> Result<DataPacket, ParseError>;
 }
 
 /// The `SymbolHandler` trait is custom implemented for each exchange and endpoint.
 pub trait SymbolHandler {
     /// Requests all tradeable symbols from an exchange's http endpoint and parses the response.
-    /// If the response is valid and contains the necessary symbol data, it will return a `Value` of
-    /// the string to be sent to subscribe to all symbols. Else, it will return a `SymbolError`.
+    ///
+    /// # Returns
+    /// A result containing a `Value` if the response is valid and contains the necessary symbol data. Else, it will
+    /// return a `SymbolError`. The `Value` will contain the necessary string used to subscribe to all symbols.
     async fn get_symbols() -> Result<Value, SymbolError>;
 }

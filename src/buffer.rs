@@ -86,6 +86,9 @@ impl Buffer {
     }
 
     /// Pushes the data in a buffer to an InfluxDB bucket.
+    ///
+    /// # Returns
+    /// A Result containing an empty Ok if pushing to InfluxDB was successful, else a DBError.
     async fn push_to_influx(&self) -> Result<(), DBError> {
         dotenv().ok();
         let data = self.storage.join("\n");

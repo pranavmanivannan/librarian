@@ -55,8 +55,8 @@ impl Buffer {
     pub async fn ingest(&mut self, data_packet: DataPacket) -> Result<(), DBError> {
         let message = match &data_packet {
             DataPacket::MI(msg) => {
-                let asks = serde_json::to_string(&msg.asks)?;
-                let bids = serde_json::to_string(&msg.bids)?;
+                let asks = serde_json::to_string(&msg.asks).map_err(|e| DBError::JsonError(e))?;
+                let bids = serde_json::to_string(&msg.bids).map_err(|e| DBError::JsonError(e))?;
                 format!(
                     "{}, asks={}, bids={}, cur_seq={}, prev_seq={}, timestamp={}",
                     msg.symbol_pair, asks, bids, msg.cur_seq, msg.prev_seq, msg.timestamp
@@ -116,7 +116,7 @@ impl Buffer {
                         &self.bucket,
                         res.status()
                     );
-                    let data = res.text().await?;
+                    let data = res.text().await.map_err(|e| DBError::ReqwestError(e))?;
                     println!("Uploaded Data:\n{}", data);
                     Ok(())
                 } else {
@@ -126,7 +126,7 @@ impl Buffer {
             }
             Err(error) => {
                 eprintln!("Reqwest Error: {:?}", error);
-                Err(DBError::ReqwestError(error))
+                Err(DBError::ReqwestMiddlewareError(error))
             }
         }
     }

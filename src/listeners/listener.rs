@@ -16,13 +16,6 @@ use url::Url;
 
 /// The main trait of the data storage system. It holds associated types to a SymbolHandler
 /// and Parser, each of which correspond to their own trait.
-///
-/// Using split() will consumes the read and write streams spawned in by the listener.
-///
-/// Calling listen() will spawn a tokio task that can be awaited on. The task will asynchronously poll
-/// from the websocket readstream and send the data to the corresponding exchange's buffer.
-///
-/// Calling connect() returns a split socket stream, the write and read streams respectively.
 #[async_trait]
 pub trait Listener<
     R: Stream<Item = Result<Message, Error>> + Unpin + Send + 'static,
@@ -38,7 +31,7 @@ pub trait Listener<
     /// parses those messages. If the message is valid, it will be send across the channel.
     ///
     /// # Arguments
-    /// * `sender` - An UnboundedSender of the type DataPacket.
+    /// * `sender` - An UnboundedSender of the type DataPacket. The corresponding UnboundedReceiveris in a storage_loop.
     ///
     /// # Returns
     /// A JoinHandle to be awaited on within a tokio::task.

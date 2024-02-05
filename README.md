@@ -50,6 +50,12 @@ pub trait Listener<
         Error,
     >
 }
+```
+
+The following two traits are traits used within the `Listener` trait. The functions for both traits are meant to be
+implemented on an exchange and endpoint basis.
+
+```rust
 
 /// The Parser trait contains the singular parse function which is custom implemented
 /// for each exchange and endpoint.
@@ -66,31 +72,45 @@ pub trait SymbolHandler {
 ```
 
 
-
 ### Data Packet
+The `DataPacket` Enum is crucial as it is how data is serialized once a `Message` has been read by a listener. Below is an example of the `Snapshot` struct of the `ST` variant in the enum.
+
 ```rust
-/// Data Packet is an enum that differentiates between the type of data, and the data inside contains relavent data sent to influx that can be used by data query team.
+/// The DataPacket Enum contains various structs. This allows for the `Parser` trait to parse a `Message` from any
+/// endpoint and return a singular data type that can be sent over a `channel`.
+#[derive(Debug)]
 pub enum DataPacket {
+    /// Serializes market incremental data.
     MI(MarketIncremental),
+    /// Serializes orderbook snapshots.
     ST(Snapshot),
-    Ping(i64), // for houbi, to flag a response with pongs
-    Invalid,   // for invalid data, such as missing sequence number
+    /// For exchanges that need to be informed to send pings. The i64 will contain the pong response.
+    Ping(i64),
+    /// Flags data as invalid.
+    Invalid,
 }
 
-/// The Snapshot struct contains the symbol-pair of the coin being traded, as well as the top 5 asks and bids.
-/// Additionally, it contains the current and previous sequence numbers to be used to keep track of the orderbook.
-/// The timestamp field represents the timestamp given by the orderbook when it generated this snapshot.
+/// Snapshot struct used to serialize data from orderbook snapshot endpoints on exchanges.
+#[derive(Serialize, Debug)]
 pub struct Snapshot {
+    /// The symbol-pair of the coin being traded.
     pub symbol_pair: String,
+    /// Top 5 asks.
     pub asks: Vec<Value>,
+    /// Top 5 bids.
     pub bids: Vec<Value>,
+    /// Current sequence number of the generated data.
     pub cur_seq: i64,
+    /// Previous sequence number of the generated data. Used for keeping track of the orderbook.
     pub prev_seq: i64,
+    /// Timestamp at which the exchange generated this orderbook snapshot.
     pub timestamp: i64,
 }
 ```
 
 ### Error Handling
+There are multiple errors that can occur during retrieving symbols, parsing messages, or pushing to the buffers/InfluxDB. In order to account for this during runtime without using heap allocations caused by `Box<dyn std::error::Error>`, custom error types have been provided.
+
 ```rust
 /// When getting symbols there are two types of errors: reqwest errors and reading errors.
 /// Reading errors require custom errors.

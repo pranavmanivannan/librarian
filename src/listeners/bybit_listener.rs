@@ -1,5 +1,6 @@
 use crate::data_packet::DataPacket;
 use crate::data_packet::MarketIncremental;
+use crate::data_packet::Snapshot;
 use crate::error::ParseError;
 use crate::error::SymbolError;
 use async_trait::async_trait;
@@ -67,8 +68,9 @@ impl Parser for ByBitParser {
         let input_data: serde_json::Value =
             serde_json::from_str(&message_string).map_err(ParseError::JsonError)?;
 
-        if !input_data.is_null() && input_data["op"] != "subscribe" {
+        if !input_data.is_null() && (input_data["type"] == "snapshot" || input_data["type"] == "delta"){
             let parsed_data = &input_data["data"];
+            let data_type = &input_data["type"];
 
             let symb_pair = parsed_data["s"]
                 .as_str()
@@ -96,16 +98,29 @@ impl Parser for ByBitParser {
                 bid_vector.to_vec()
             };
 
-            let enum_creator = MarketIncremental {
-                symbol_pair: symb_pair,
-                asks,
-                bids,
-                cur_seq: seq_num,
-                prev_seq: 0,
-                timestamp: ts,
-            };
+            if data_type == "delta" {
+                let enum_creator = MarketIncremental {
+                    symbol_pair: symb_pair,
+                    asks,
+                    bids,
+                    cur_seq: seq_num,
+                    prev_seq: 0,
+                    timestamp: ts,
+                };
 
-            Ok(DataPacket::MI(enum_creator))
+                Ok(DataPacket::MI(enum_creator))
+            } else {
+                let enum_creator = Snapshot {
+                    symbol_pair: symb_pair,
+                    asks,
+                    bids,
+                    cur_seq: seq_num,
+                    prev_seq: 0,
+                    timestamp: ts,
+                };
+
+                Ok(DataPacket::ST(enum_creator))
+            }
         } else {
             Err(ParseError::ParsingError)
         }

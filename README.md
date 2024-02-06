@@ -27,9 +27,16 @@ The core of the system revolves around the following loop:
 pub trait Exchange {
     type Listener: Listener;
     type BufferHandler: BufferHandler;
+    type channel = tokio::sync::mpsc::unbounded_channel();
 
-    /// calls Listener::listen and BufferHandler::new
-    async fn build() -> Result<JoinHandle, Error>;
+    /// Creates a new Listener and Buffer using the owned channel.
+    ///
+    /// Creating a `Buffer` using the `BufferHandler` will create the task using the receiver end of the channel
+    /// and will spawn a `tokio::task` that runs `storage_loop`.
+    ///
+    /// Creating a `Listener` will return a Result containing a JoinHandle if the creation was successful, else
+    /// it will return an Error. The JoinHandle can be awaited on.
+    async fn build() -> Result<JoinHandle, Error> {}
 }
 
 /// The Listener trait contains listen which connects to a websocket and listens and parses data

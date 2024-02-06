@@ -32,6 +32,15 @@ pub trait Exchange {
     async fn build() -> Result<JoinHandle, Error>;
 }
 
+/// The Listener trait contains listen which connects to a websocket and listens and parses data
+pub trait Listener {
+    fn listen(message: Message) -> Result<DataPacket, ParseError>;
+}
+
+/// The BufferHandler trait contains buffer which instantiates buffer and sends data to Influx.
+pub trait BufferHandler {
+    async fn build_buffer() -> Buffer;
+}
 
 ```
 

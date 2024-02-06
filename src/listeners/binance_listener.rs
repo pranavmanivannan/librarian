@@ -21,7 +21,12 @@ impl Listener for BinanceListener {
     type SymbolHandler = BinanceSymbolHandler;
 }
 
-impl Parser for BinanceParser {}
+impl Parser for BinanceParser {
+    fn parse(message: Message) -> Result<DataPacket, ParseError> {
+        
+        Err(ParseError::ParsingError)
+    }
+}
 
 impl SymbolHandler for BinanceSymbolHandler {
     async fn get_symbols() -> Result<Value, SymbolError> {
@@ -40,12 +45,15 @@ impl SymbolHandler for BinanceSymbolHandler {
             .map(ToString::to_string)
             .collect();
 
+        //https://binance-docs.github.io/apidocs/futures/en/#diff-book-depth-streams
+        // market inc
         let mut symbol_list: Vec<String> = Vec::new();
         for symbol in symbol_pairs {
-            symbol_list.push(format!("orderbook.50.{symbol}"));
+            symbol_list.push(format!("{symbol}@depth"));
         }
 
         log::info!("Binance - Successfully retrieved all symbols!");
+
 
         let symbols = json!({
             "op": "subscribe",

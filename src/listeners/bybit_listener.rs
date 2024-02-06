@@ -20,7 +20,7 @@ pub struct ByBitSymbolHandler {}
 #[async_trait]
 impl Listener for ByBitListener {
     type Parser = ByBitParser;
-    type SymbolHander = ByBitSymbolHandler;
+    type SymbolHandler = ByBitSymbolHandler;
 }
 
 impl Parser for ByBitParser {

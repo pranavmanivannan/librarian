@@ -19,7 +19,7 @@ use url::Url;
 #[async_trait]
 pub trait Listener: Send + Sync {
     type Parser: Parser;
-    type SymbolHander: SymbolHandler;
+    type SymbolHandler: SymbolHandler;
     /// Creates a the read and write halves of the websocket stream to receive messages and then
     /// parses those messages. If the message is valid, it will be sent across the channel.
     ///
@@ -37,7 +37,7 @@ pub trait Listener: Send + Sync {
         tokio::spawn(async move {
             loop {
                 let (mut write, mut read) = Self::connect(&url).await?;
-                let symbols = Self::SymbolHander::get_symbols().await;
+                let symbols = Self::SymbolHandler::get_symbols().await;
                 if let Ok(symbols) = symbols {
                     let _ = write.send(Message::Text(symbols.to_string())).await;
                 }

@@ -62,7 +62,7 @@ pub trait Listener<
 >: Sized
 {
     type Parser: Parser;
-    type SymbolHander: SymbolHandler;
+    type SymbolHandler: SymbolHandler;
     fn split(self) -> (R, W);
     async fn listen(self, sender: UnboundedSender<DataPacket>) -> JoinHandle<Result<(), Error>> {
         let (mut r, _) = self.split();

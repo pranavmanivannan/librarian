@@ -11,8 +11,6 @@ pub enum DataPacket {
     ST(Snapshot),
     /// For exchanges that need to be informed to send pings. The i64 will contain the pong response.
     Ping(i64),
-    /// Flags data as invalid.
-    Invalid,
 }
 
 /// Market Incremental struct used to serialize data from market incremental endpoints on exchanges.

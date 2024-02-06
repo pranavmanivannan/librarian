@@ -1,6 +1,5 @@
 use crate::data_packet::DataPacket;
 use crate::data_packet::MarketIncremental;
-use crate::data_packet::Snapshot;
 use crate::error::ParseError;
 use crate::error::SymbolError;
 use async_trait::async_trait;
@@ -9,7 +8,7 @@ use tungstenite::Message;
 
 use super::listener::{Listener, Parser, SymbolHandler};
 
-const Binance_SYMBOL_API: &str = "https://api.hbdm.vn/linear-swap-api/v1/swap_contract_info";
+const Binance_SYMBOL_API: &str = "https://api.binance.us/api/v3/exchangeInfo";
 
 pub struct BinanceListener {}
 pub struct BinanceParser {}
@@ -23,8 +22,55 @@ impl Listener for BinanceListener {
 
 impl Parser for BinanceParser {
     fn parse(message: Message) -> Result<DataPacket, ParseError> {
-        
-        Err(ParseError::ParsingError)
+        let message_string = message.to_string();
+        let input_data: serde_json::Value =
+            serde_json::from_str(&message_string).map_err(ParseError::JsonError)?;
+
+        if !input_data.is_null() && (input_data["e"] == "depthUpdate") {
+            let data_type = input_data["e"].as_str().ok_or(ParseError::ParsingError)?;
+            let symb_pair = input_data["s"]
+                .as_str()
+                .ok_or(ParseError::ParsingError)?
+                .to_uppercase();
+
+            let seq_num = input_data["u"].as_i64().ok_or(ParseError::ParsingError)?;
+            let prev_seq_num = input_data["pu"].as_i64().ok_or(ParseError::ParsingError)?;
+            let ts = input_data["T"].as_i64().ok_or(ParseError::ParsingError)?;
+
+            let ask_vector = input_data["a"]
+                .as_array()
+                .ok_or(ParseError::ParsingError)?;
+            let asks: Vec<Value> = if ask_vector.len() >= 5 {
+                ask_vector[..5].to_vec()
+            } else {
+                ask_vector.to_vec()
+            };
+
+            let bid_vector = input_data["b"]
+                .as_array()
+                .ok_or(ParseError::ParsingError)?;
+            let bids: Vec<Value> = if bid_vector.len() >= 5 {
+                bid_vector[..5].to_vec()
+            } else {
+                bid_vector.to_vec()
+            };
+
+            if data_type == "depthUpdate" {
+                let enum_creator = MarketIncremental {
+                    symbol_pair: symb_pair,
+                    asks,
+                    bids,
+                    cur_seq: seq_num,
+                    prev_seq: prev_seq_num,
+                    timestamp: ts,
+                };
+
+                return Ok(DataPacket::MI(enum_creator));
+            }
+            return Err(ParseError::ParsingError)
+        } else {
+            return Err(ParseError::ParsingError)
+        }
     }
 }
 

@@ -72,7 +72,7 @@ impl Parser for ByBitParser {
                 };
 
                 Ok(DataPacket::MI(enum_creator))
-            } else {
+            } else if data_type == "snapshot" {
                 let enum_creator = Snapshot {
                     symbol_pair: symb_pair,
                     asks,
@@ -83,6 +83,8 @@ impl Parser for ByBitParser {
                 };
 
                 Ok(DataPacket::ST(enum_creator))
+            } else {
+                Err(ParseError::ParsingError)
             }
         } else {
             Err(ParseError::ParsingError)

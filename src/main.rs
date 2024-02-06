@@ -1,4 +1,4 @@
-use exchanges::{bybit_exchange::ByBitExchange, exchange::Exchange};
+use exchanges::{binance_exchange::BinanceExchange, bybit_exchange::ByBitExchange, exchange::Exchange};
 use log::LevelFilter;
 use log4rs::{
     append::file::FileAppender,
@@ -28,8 +28,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log4rs::init_config(config)?;
 
-    let bybit_exchange = ByBitExchange::new();
-    let (buffer, listener) = bybit_exchange.build().await;
+    let binance_exchange = BinanceExchange::new();
+    let (buffer, listener) = binance_exchange.build().await;
 
     let _ = futures::join!(buffer, listener);
 

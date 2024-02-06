@@ -1,6 +1,4 @@
-use background::storage_loop;
-use buffer::Buffer;
-use listeners::{bybit_listener::ByBitListener, listener::Listener};
+use exchanges::{bybit_exchange::ByBitExchange, exchange::Exchange};
 use log::LevelFilter;
 use log4rs::{
     append::file::FileAppender,
@@ -11,6 +9,7 @@ use log4rs::{
 
 mod background;
 mod buffer;
+mod exchanges;
 mod data_packet;
 mod error;
 mod listeners;
@@ -29,14 +28,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log4rs::init_config(config)?;
 
-    let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
+    let bybit_exchange = ByBitExchange::new();
+    let (buffer, listener) = bybit_exchange.build().await;
 
-    let bybit_listener = ByBitListener::setup().await?;
-    let bybit = bybit_listener.listen(sender).await;
-
-    tokio::spawn(storage_loop(Buffer::new("ByBit", 500), receiver));
-
-    let _ = futures::join!(bybit);
+    let _ = futures::join!(buffer, listener);
 
     Ok(())
 }

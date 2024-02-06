@@ -2,8 +2,8 @@ use crate::data_packet::DataPacket;
 use crate::error::ParseError;
 use crate::error::SymbolError;
 use async_trait::async_trait;
-use futures::{Sink, Stream};
 use futures_util::stream::{SplitSink, SplitStream};
+use futures_util::SinkExt;
 use futures_util::StreamExt;
 use serde_json::Value;
 use tokio::net::TcpStream;
@@ -17,41 +17,41 @@ use url::Url;
 /// The main trait of the data storage system. It holds associated types to a SymbolHandler
 /// and Parser, each of which correspond to their own trait.
 #[async_trait]
-pub trait Listener<
-    R: Stream<Item = Result<Message, Error>> + Unpin + Send + 'static,
-    W: Sink<Message> + Unpin + Send + 'static,
->: Sized
-{
+pub trait Listener: Send + Sync {
     type Parser: Parser;
     type SymbolHander: SymbolHandler;
-    /// Consumes the listener's read and writestreams for use.
-    ///
-    /// # Returns
-    /// The read and writestreams of the listener.
-    fn split(self) -> (R, W);
-
-    /// Uses the consumed read and writestreams to receive messages from the websocket stream and then
-    /// parses those messages. If the message is valid, it will be send across the channel.
+    /// Creates a the read and write halves of the websocket stream to receive messages and then
+    /// parses those messages. If the message is valid, it will be sent across the channel.
     ///
     /// # Arguments
     /// * `sender` - An UnboundedSender of the type DataPacket. The corresponding UnboundedReceiveris in a storage_loop.
     ///
     /// # Returns
     /// A JoinHandle to be awaited on within a tokio::task.
-    async fn listen(self, sender: UnboundedSender<DataPacket>) -> JoinHandle<Result<(), Error>> {
-        let (mut r, _) = self.split();
+    async fn listen(
+        ws_url: &str,
+        sender: UnboundedSender<DataPacket>,
+    ) -> JoinHandle<Result<(), tungstenite::Error>> {
+        let sender_clone = sender.clone();
+        let url = ws_url.to_string();
         tokio::spawn(async move {
-            while let Some(Ok(message)) = r.next().await {
-                if let Message::Close(_) = message {
-                    break;
-                } else {
-                    let data_packet = Self::Parser::parse(message);
-                    if let Ok(data_packet) = data_packet {
-                        let _ = sender.send(data_packet);
+            loop {
+                let (mut write, mut read) = Self::connect(&url).await?;
+                let symbols = Self::SymbolHander::get_symbols().await;
+                if let Ok(symbols) = symbols {
+                    let _ = write.send(Message::Text(symbols.to_string())).await;
+                }
+                while let Some(Ok(message)) = read.next().await {
+                    if let Message::Close(_) = message {
+                        break;
+                    } else {
+                        let data_packet = Self::Parser::parse(message);
+                        if let Ok(data_packet) = data_packet {
+                            let _ = sender_clone.send(data_packet);
+                        }
                     }
                 }
             }
-            Ok::<(), Error>(())
         })
     }
 
@@ -110,5 +110,5 @@ pub trait SymbolHandler {
     /// # Returns
     /// A result containing a `Value` if the response is valid and contains the necessary symbol data. Else, it will
     /// return a `SymbolError`. The `Value` will contain the necessary string used to subscribe to all symbols.
-    async fn get_symbols() -> Result<Value, SymbolError>;
+    fn get_symbols() -> impl std::future::Future<Output = Result<Value, SymbolError>> + std::marker::Send;
 }

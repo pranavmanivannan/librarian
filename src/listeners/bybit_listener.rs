@@ -4,62 +4,23 @@ use crate::data_packet::Snapshot;
 use crate::error::ParseError;
 use crate::error::SymbolError;
 use async_trait::async_trait;
-use futures::{Sink, Stream};
-use futures_util::{
-    stream::{SplitSink, SplitStream},
-    SinkExt,
-};
 use serde_json::{json, Value};
-use tokio::net::TcpStream;
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tungstenite::Message;
 
 use super::listener::{Listener, Parser, SymbolHandler};
 
-/// The websocket url used to connect to ByBit's perpetuals and futures market data.
-const BYBIT_WS: &str = "wss://stream.bybit.com/v5/public/linear";
 /// The http url used to request all symbols on ByBit's market.
 const BYBIT_SYMBOL_API: &str = "https://api-testnet.bybit.com/v5/market/tickers?category=linear";
 
-pub struct ByBitListener<
-    R: Stream<Item = Result<Message, tungstenite::Error>> + Send + 'static,
-    W: Sink<Message> + Unpin + Send + 'static,
-> {
-    read: R,
-    write: W,
-}
+pub struct ByBitListener {}
 
 pub struct ByBitParser {}
 pub struct ByBitSymbolHandler {}
 
-impl
-    ByBitListener<
-        SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
-        SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
-    >
-{
-    pub async fn setup() -> Result<Self, tungstenite::Error> {
-        let (mut write, read) = Self::connect(BYBIT_WS).await?;
-        let symbols = ByBitSymbolHandler::get_symbols().await;
-        if let Ok(symbols) = symbols {
-            let _ = write.send(Message::Text(symbols.to_string())).await;
-        }
-        Ok(Self { read, write })
-    }
-}
-
 #[async_trait]
-impl<
-        R: Stream<Item = Result<Message, tungstenite::Error>> + Unpin + Send + 'static,
-        W: Sink<Message> + Unpin + Send + 'static,
-    > Listener<R, W> for ByBitListener<R, W>
-{
+impl Listener for ByBitListener {
     type Parser = ByBitParser;
     type SymbolHander = ByBitSymbolHandler;
-
-    fn split(self) -> (R, W) {
-        (self.read, self.write)
-    }
 }
 
 impl Parser for ByBitParser {

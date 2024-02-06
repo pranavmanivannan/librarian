@@ -15,7 +15,7 @@ The core of the system revolves around the following loop:
 ## Implementation Details
 - On startup, the system will initially spawn in multiple `mpsc::channel` to be used.
 - Afterwards, the system will spawn in multiple listeners and consume the `UnboundedSender` spawned in by the channel. Each listener will connect to a set of endpoints and symbols.
-- These listeners are of the type `tokio::task::JoinHandle`, and each listener will be awaited on within a `tokio::task`.
+- These listeners return a `tokio::task::JoinHandle`, and each listener will be awaited on within a `tokio::task`.
   - In the case a connection dies within a task, the loop will create a new task and respawn the listener task before awaiting it.
 - Alongside these listeners, there will be a `Buffer` spawned in for each listener, consuming the `UnboundedReceiver` end of the channels.
 - These buffers will continuously poll from the channels and call `ingest` on the received `DataPacket`. If a `Buffer` is full, it will call `push_to_influx` and send all data currently in that buffer to InfluxDB before clearing the buffer.

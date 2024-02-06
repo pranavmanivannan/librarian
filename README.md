@@ -9,7 +9,7 @@ The data storage system has two core components:
 The core of the system revolves around the following loop:
 1) Spawn in multiple listeners which implement the `Listener` trait.
 2) Subscribe each listener to one or more exchange endpoints to asynchronously receive messages from the exchange. (i.e. the `HuobiListener` will be subscribed to both `MarketIncremental` and `Snapshot` data).
-3) Each listener will send serialize `DataPacket` structs from the messages they receive and send them over a `channel` to a `Buffer` running in another tokio task.
+3) Each listener will send serialize `DataPacket` structs from the messages they receive and send them over a `mpsc::channel` to a `Buffer` running in another tokio task.
 4) Once a `Buffer` is full, the `Buffer` will send all data inside of it to InfluxDB and clear itself, allowing for more messages to be stored.
 
 ## Implementation Details

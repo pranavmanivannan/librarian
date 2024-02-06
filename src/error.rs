@@ -43,7 +43,9 @@ impl fmt::Display for DBError {
         match *self {
             DBError::HttpError(ref status) => write!(f, "HTTP Error: {}", status),
             DBError::ReqwestError(ref error) => write!(f, "Reqwest Error: {}", error),
-            DBError::ReqwestMiddlewareError(ref error) => write!(f, "Reqwest middleware Error: {}", error),
+            DBError::ReqwestMiddlewareError(ref error) => {
+                write!(f, "Reqwest middleware Error: {}", error)
+            }
             DBError::JsonError(ref error) => write!(f, "JSON Error: {}", error),
         }
     }

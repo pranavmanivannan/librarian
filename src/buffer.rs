@@ -1,10 +1,11 @@
-use crate::{data_packet, error::DBError};
+use crate::{background::storage_loop, data_packet, error::DBError};
 use data_packet::DataPacket;
 use dotenv::dotenv;
 use reqwest::{self};
 use reqwest_middleware::ClientBuilder;
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 use std::env;
+use tokio::{sync::mpsc::UnboundedReceiver, task::JoinHandle};
 
 const ORGANIZATION: &str = "Quant Dev";
 
@@ -45,7 +46,26 @@ impl Buffer {
         }
     }
 
-    /// A separate function that sorts datapackets and pushes it to buffer.
+    /// A function that creates a new buffer and then creates a tokio::task using that buffer,
+    ///
+    /// # Arguments
+    /// * `bucket_name` - The name of the bucket on InfluxDB.
+    /// * `capacity` - The capacity of the buffer before it pushes to InfluxDB.
+    /// * `receiver` - An `UnboundedReceiver` that receives the type `DataPacket`.
+    ///
+    /// # Returns
+    /// A JoinHandle to use.
+    pub fn create_task(
+        bucket_name: &str,
+        capacity: usize,
+        receiver: UnboundedReceiver<DataPacket>,
+    ) -> JoinHandle<()> {
+        let buffer = Buffer::new(bucket_name, capacity);
+        let task = tokio::spawn(storage_loop(buffer, receiver));
+        return task;
+    }
+
+    /// A separate function that sorts datapackets by type and pushes it to buffer.
     ///
     /// # Arguments
     /// * `data_packet` - A DataPacket received from a listener.

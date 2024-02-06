@@ -68,7 +68,9 @@ impl Parser for ByBitParser {
         let input_data: serde_json::Value =
             serde_json::from_str(&message_string).map_err(ParseError::JsonError)?;
 
-        if !input_data.is_null() && (input_data["type"] == "snapshot" || input_data["type"] == "delta"){
+        if !input_data.is_null()
+            && (input_data["type"] == "snapshot" || input_data["type"] == "delta")
+        {
             let parsed_data = &input_data["data"];
             let data_type = &input_data["type"];
 

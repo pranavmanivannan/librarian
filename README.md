@@ -20,6 +20,21 @@ The core of the system revolves around the following loop:
 - Alongside these listeners, there will be a `Buffer` spawned in for each listener, consuming the `UnboundedReceiver` end of the channels.
 - These buffers will continuously poll from the channels and call `ingest` on the received `DataPacket`. If a `Buffer` is full, it will call `push_to_influx` and send all data currently in that buffer to InfluxDB before clearing the buffer.
 
+### Exchange
+```rust
+/// Trait that owns listener and buffer and builds system for each exchange
+#[async_trait]
+pub trait Exchange {
+    type Listener: Listener;
+    type BufferHandler: BufferHandler;
+
+    /// calls Listener::listen and BufferHandler::new
+    async fn build() -> Result<JoinHandle, Error>;
+}
+
+
+```
+
 ### Listener
 ```rust
 /// The main trait of the data storage system. It holds associated types to a SymbolHandler

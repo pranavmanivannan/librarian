@@ -4,11 +4,15 @@ use super::exchange::Exchange;
 
 const BINANCE_WS: &str = "wss://fstream.binance.com";
 
-pub struct BinanceExchange { websocket_url: String }
+pub struct BinanceExchange {
+    websocket_url: String,
+}
 
 impl BinanceExchange {
     pub fn new() -> Self {
-        BinanceExchange { websocket_url: BINANCE_WS.to_string() }
+        BinanceExchange {
+            websocket_url: BINANCE_WS.to_string(),
+        }
     }
 }
 

@@ -110,5 +110,6 @@ pub trait SymbolHandler {
     /// # Returns
     /// A result containing a `Value` if the response is valid and contains the necessary symbol data. Else, it will
     /// return a `SymbolError`. The `Value` will contain the necessary string used to subscribe to all symbols.
-    fn get_symbols() -> impl std::future::Future<Output = Result<Value, SymbolError>> + std::marker::Send;
+    fn get_symbols(
+    ) -> impl std::future::Future<Output = Result<Value, SymbolError>> + std::marker::Send;
 }

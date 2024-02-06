@@ -14,6 +14,6 @@ pub trait Exchange: Sized {
         let listener = Self::Listener::listen(&websocket_url, sender).await;
         let buffer = Buffer::create_task("ByBit", 500, receiver);
 
-        return (buffer, listener)
+        return (buffer, listener);
     }
 }

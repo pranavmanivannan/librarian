@@ -1,4 +1,6 @@
-use exchanges::{binance_exchange::BinanceExchange, bybit_exchange::ByBitExchange, exchange::Exchange};
+use exchanges::{
+    binance_exchange::BinanceExchange, bybit_exchange::ByBitExchange, exchange::Exchange,
+};
 use log::LevelFilter;
 use log4rs::{
     append::file::FileAppender,
@@ -9,9 +11,9 @@ use log4rs::{
 
 mod background;
 mod buffer;
-mod exchanges;
 mod data_packet;
 mod error;
+mod exchanges;
 mod listeners;
 // main.rs
 

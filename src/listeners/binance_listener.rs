@@ -8,7 +8,7 @@ use tungstenite::Message;
 
 use super::listener::{Listener, Parser, SymbolHandler};
 
-const Binance_SYMBOL_API: &str = "https://api.binance.us/api/v3/exchangeInfo";
+const BINANCE_SYMBOL_API: &str = "https://api.binance.us/api/v3/exchangeInfo";
 
 pub struct BinanceListener {}
 pub struct BinanceParser {}
@@ -37,18 +37,14 @@ impl Parser for BinanceParser {
             let prev_seq_num = input_data["pu"].as_i64().ok_or(ParseError::ParsingError)?;
             let ts = input_data["T"].as_i64().ok_or(ParseError::ParsingError)?;
 
-            let ask_vector = input_data["a"]
-                .as_array()
-                .ok_or(ParseError::ParsingError)?;
+            let ask_vector = input_data["a"].as_array().ok_or(ParseError::ParsingError)?;
             let asks: Vec<Value> = if ask_vector.len() >= 5 {
                 ask_vector[..5].to_vec()
             } else {
                 ask_vector.to_vec()
             };
 
-            let bid_vector = input_data["b"]
-                .as_array()
-                .ok_or(ParseError::ParsingError)?;
+            let bid_vector = input_data["b"].as_array().ok_or(ParseError::ParsingError)?;
             let bids: Vec<Value> = if bid_vector.len() >= 5 {
                 bid_vector[..5].to_vec()
             } else {
@@ -67,16 +63,16 @@ impl Parser for BinanceParser {
 
                 return Ok(DataPacket::MI(enum_creator));
             }
-            return Err(ParseError::ParsingError)
+            return Err(ParseError::ParsingError);
         } else {
-            return Err(ParseError::ParsingError)
+            return Err(ParseError::ParsingError);
         }
     }
 }
 
 impl SymbolHandler for BinanceSymbolHandler {
     async fn get_symbols() -> Result<Value, SymbolError> {
-        let response = match reqwest::get(Binance_SYMBOL_API).await {
+        let response = match reqwest::get(BINANCE_SYMBOL_API).await {
             Ok(res) => res,
             Err(err) => return Err(SymbolError::ReqwestError(err)),
         };
@@ -99,7 +95,6 @@ impl SymbolHandler for BinanceSymbolHandler {
         }
 
         log::info!("Binance - Successfully retrieved all symbols!");
-
 
         let symbols = json!({
             "op": "subscribe",

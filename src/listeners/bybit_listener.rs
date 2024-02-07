@@ -4,9 +4,21 @@ use crate::data_packet::Snapshot;
 use crate::error::ParseError;
 use crate::error::SymbolError;
 use async_trait::async_trait;
+use futures_util::stream::SplitSink;
+use futures_util::stream::SplitStream;
+use futures_util::SinkExt;
+use futures_util::StreamExt;
 use serde_json::{json, Value};
+use tokio::net::TcpStream;
+use tokio_tungstenite::connect_async;
+use tokio_tungstenite::MaybeTlsStream;
+use tokio_tungstenite::WebSocketStream;
+use tokio_tungstenite::tungstenite::error::Error as TungsteniteError;
+use tungstenite::Error;
 use tungstenite::Message;
+use url::Url;
 
+use super::listener::Symbols;
 use super::listener::{Listener, Parser, SymbolHandler};
 
 /// The http url used to request all symbols on ByBit's market.
@@ -21,6 +33,36 @@ pub struct ByBitSymbolHandler {}
 impl Listener for ByBitListener {
     type Parser = ByBitParser;
     type SymbolHandler = ByBitSymbolHandler;
+
+    async fn connect(
+        websocket_url: &str,
+    ) -> Result<
+        (
+            SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
+            SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
+        ),
+        Error,
+    > {
+        let url_result = Url::parse(websocket_url);
+        let url = match url_result {
+            Ok(url) => url,
+            Err(err) => {
+                let error_msg = format!("URL parse error: {err}");
+                return Err(TungsteniteError::Io(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    error_msg,
+                )));
+            }
+        };
+
+        let (socket, _) = connect_async(url).await?;
+        let (mut write, read) = socket.split();
+        let symbols = Self::SymbolHandler::get_symbols().await;
+        if let Ok(Symbols::SymbolString(symbols)) = symbols {
+            let _ = write.send(Message::Text(symbols)).await;
+        }
+        return Ok((write, read));
+    }
 }
 
 impl Parser for ByBitParser {
@@ -93,7 +135,7 @@ impl Parser for ByBitParser {
 }
 
 impl SymbolHandler for ByBitSymbolHandler {
-    async fn get_symbols() -> Result<Value, SymbolError> {
+    async fn get_symbols() -> Result<Symbols, SymbolError> {
         let response = match reqwest::get(BYBIT_SYMBOL_API).await {
             Ok(res) => res,
             Err(err) => return Err(SymbolError::ReqwestError(err)),
@@ -123,6 +165,6 @@ impl SymbolHandler for ByBitSymbolHandler {
             "args": symbol_list,
         });
 
-        Ok(symbols)
+        Ok(Symbols::SymbolString(symbols.to_string()))
     }
 }

@@ -37,14 +37,11 @@ pub trait Listener: Send + Sync {
         tokio::spawn(async move {
             loop {
                 let (mut write, mut read) = Self::connect(&url).await?;
-                let symbols = Self::SymbolHandler::get_symbols().await;
-                if let Ok(symbols) = symbols {
-                    let _ = write.send(Message::Text(symbols.to_string())).await;
-                }
                 while let Some(Ok(message)) = read.next().await {
                     if let Message::Close(_) = message {
                         break;
                     } else {
+                        // println!("Received message: {:?}", message);
                         let data_packet = Self::Parser::parse(message);
                         if let Ok(data_packet) = data_packet {
                             match data_packet {
@@ -119,5 +116,10 @@ pub trait SymbolHandler {
     /// A result containing a `Value` if the response is valid and contains the necessary symbol data. Else, it will
     /// return a `SymbolError`. The `Value` will contain the necessary string used to subscribe to all symbols.
     fn get_symbols(
-    ) -> impl std::future::Future<Output = Result<Value, SymbolError>> + std::marker::Send;
+    ) -> impl std::future::Future<Output = Result<Symbols, SymbolError>> + std::marker::Send;
+}
+
+pub enum Symbols {
+    SymbolVector(Vec<String>),
+    SymbolString(String),
 }

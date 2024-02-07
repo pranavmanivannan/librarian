@@ -21,6 +21,7 @@ use tungstenite::Error;
 use tungstenite::Message;
 use url::Url;
 
+use super::listener::Symbols;
 use super::listener::{Listener, Parser, SymbolHandler};
 
 /// The http url used to request all symbols on Huobi's market.
@@ -59,11 +60,9 @@ impl Listener for HuobiListener {
         let (socket, _) = connect_async(url).await?;
         let (mut write, read) = socket.split();
         let symbols = Self::SymbolHandler::get_symbols().await;
-        if let Ok(symbols) = symbols {
-            if let Some(symbols) = symbols.as_array() {
-                for symbol in symbols {
-                    let _ = write.send(Message::Text(symbol.to_string())).await;
-                }
+        if let Ok(Symbols::SymbolVector(symbols)) = symbols {
+            for symbol in symbols {
+                let _ = write.send(Message::Text(symbol.to_string())).await;
             }
         }
         return Ok((write, read));
@@ -160,7 +159,7 @@ impl Parser for HuobiParser {
 }
 
 impl SymbolHandler for HuobiSymbolHandler {
-    async fn get_symbols() -> Result<Value, SymbolError> {
+    async fn get_symbols() -> Result<Symbols, SymbolError> {
         let response = match reqwest::get(HUOBI_SYMBOL_API).await {
             Ok(res) => res,
             Err(err) => return Err(SymbolError::ReqwestError(err)),
@@ -172,11 +171,11 @@ impl SymbolHandler for HuobiSymbolHandler {
             .as_array()
             .ok_or(SymbolError::MissingSymbolsError)?
             .iter()
-            .filter_map(|s| s["symbol"].as_str())
+            .filter_map(|s| s["contract_code"].as_str())
             .map(ToString::to_string)
             .collect();
 
-        let mut subscriptions: Vec<Value> = Vec::new();
+        let mut subscriptions: Vec<String> = Vec::new();
         for symbol in symbol_pairs {
             // market incremental
             let inc_subscription = json!({
@@ -185,7 +184,7 @@ impl SymbolHandler for HuobiSymbolHandler {
                 "id": format!("id_{}", symbol)
             })
             .to_string();
-            subscriptions.push(serde_json::Value::String(inc_subscription));
+            subscriptions.push(inc_subscription);
 
             // snapshot subscription
             let snap_subscription = json!({
@@ -194,12 +193,11 @@ impl SymbolHandler for HuobiSymbolHandler {
                 "id": format!("id_{}", symbol)
             })
             .to_string();
-            subscriptions.push(serde_json::Value::String(snap_subscription));
+            subscriptions.push(snap_subscription);
         }
 
         log::info!("Huobi - Successfully retrieved all symbols!");
 
-        Ok(serde_json::Value::Array(subscriptions))
-        // try Ok(Value::Array(subscriptions)) if that crashes because of return type mismatch
+        Ok(Symbols::SymbolVector(subscriptions))
     }
 }

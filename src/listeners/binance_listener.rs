@@ -41,7 +41,7 @@ impl Listener for BinanceListener {
     > {
         let symbols = Self::SymbolHandler::get_symbols().await;
         if let Ok(Symbols::SymbolString(symbols)) = symbols {
-            let binance_url = format!("{}/stream?streams={}", websocket_url, symbols.to_string());
+            let binance_url = format!("{}/stream?streams={}", websocket_url, symbols);
             let (socket, _) = connect_async(binance_url).await?;
             let (mut write, read) = socket.split();
             let _ = write.send(Message::Text(symbols.to_string())).await;
@@ -98,9 +98,9 @@ impl Parser for BinanceParser {
 
                 return Ok(DataPacket::MI(enum_creator));
             }
-            return Err(ParseError::ParsingError);
+            Err(ParseError::ParsingError)
         } else {
-            return Err(ParseError::ParsingError);
+            Err(ParseError::ParsingError)
         }
     }
 }

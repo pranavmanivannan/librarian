@@ -76,7 +76,7 @@ impl Parser for HuobiParser {
         if !input_data.is_null() {
             if let Some(ping_key) = input_data.get("ping") {
                 let pong = json!({ "pong": ping_key }).to_string();
-                return Ok(DataPacket::Ping(pong));
+                Ok(DataPacket::Ping(pong))
             } else if let Some(parsed_data) = &input_data.get("tick") {
                 let data_type = &parsed_data["event"];
 

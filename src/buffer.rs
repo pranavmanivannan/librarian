@@ -61,8 +61,7 @@ impl Buffer {
         receiver: UnboundedReceiver<DataPacket>,
     ) -> JoinHandle<()> {
         let buffer = Buffer::new(bucket_name, capacity);
-        let task = tokio::spawn(storage_loop(buffer, receiver));
-        return task;
+        tokio::spawn(storage_loop(buffer, receiver))
     }
 
     /// A separate function that sorts datapackets by type and pushes it to buffer.
@@ -75,8 +74,8 @@ impl Buffer {
     pub async fn ingest(&mut self, data_packet: DataPacket) -> Result<(), DBError> {
         let message = match &data_packet {
             DataPacket::MI(msg) => {
-                let asks = serde_json::to_string(&msg.asks).map_err(|e| DBError::JsonError(e))?;
-                let bids = serde_json::to_string(&msg.bids).map_err(|e| DBError::JsonError(e))?;
+                let asks = serde_json::to_string(&msg.asks).map_err(DBError::JsonError)?;
+                let bids = serde_json::to_string(&msg.bids).map_err(DBError::JsonError)?;
                 format!(
                     "{}, asks={}, bids={}, cur_seq={}, prev_seq={}, timestamp={}",
                     msg.symbol_pair, asks, bids, msg.cur_seq, msg.prev_seq, msg.timestamp
@@ -139,7 +138,7 @@ impl Buffer {
                         &self.bucket,
                         res.status()
                     );
-                    let data = res.text().await.map_err(|e| DBError::ReqwestError(e))?;
+                    let data = res.text().await.map_err(DBError::ReqwestError)?;
                     println!("Uploaded Data:\n{}", data);
                     Ok(())
                 } else {

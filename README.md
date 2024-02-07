@@ -10,8 +10,8 @@ Core components:
 ## How it works:
 1) Call the `build` function for each exchange implementing the `Exchange` trait. This will create two tasks of the type `tokio::task::JoinHandle`.
 2) One of these tasks will subscribe the `Listener` for the exchange to all necessary endpoints and symbols. This task will also contain an `UnboundedReceiver` to send the parsed messages over a `mpsc::channel`.
-3) The other task will repeatedly poll an `UnboundedReceiver` for `DataPackets` and will send this data to a `Buffer` where it is sorted into multiple vectors depending on the type of data.
-4) Once a `Buffer` is full, the `Buffer` will send all data inside to InfluxDB and clear itself, allowing for more messages to be stored.
+3) The other task will repeatedly poll an `UnboundedReceiver` for `DataPackets` and will push this data to the correct `Buffer` depending on the type of data (e.g., snapshot or incremental).
+4) Once a `Buffer` is full, that `Buffer` will send all data inside to InfluxDB and clear itself, allowing for more data packets to be stored.
 
 ## Implementation Details
 - Each exchange (Huobi, Binance, ByBit, etc.) should only have one corresponding exchange file implementing `Exchange`. 
@@ -190,14 +190,14 @@ impl Buffer {
     ///
     /// # Arguments
     /// * `buffer_name` - The name of the exchange.
-    /// * `capacity` - The capacity of the buffer before it pushes to InfluxDB.
+    /// * `capacity` - The maximum capacity of the buffer.
     pub fn new(buffer_name: &str, capacity: usize) -> Buffer {}
 
     /// A function that creates a new buffer and then creates a tokio::task using that buffer,
     ///
     /// # Arguments
     /// * `buffer_name` - The name of the exchange.
-    /// * `capacity` - The capacity of the vectors within the buffer before they push to InfluxDB.
+    /// * `capacity` - The maximum capacity of the buffer (size of backing vector).
     /// * `receiver` - An `UnboundedReceiver` that receives the type `DataPacket`.
     ///
     /// # Returns

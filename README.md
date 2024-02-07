@@ -32,8 +32,9 @@ pub trait Exchange: Sized {
     /// This will create two tasks, the first of which runs a loop which continuously polls an UnboundedReceiver
     /// for DataPackets and pushes it to a Buffer. This loop will be returned as a JoinHandle<()>. The other task
     /// creates a `Listener` will return a JoinHandle<Result<(), tungstenite::Error>>. If the creation of the task
-    /// was successful, the JoinHandle can be awaited on.
-    async fn build(self) -> (JoinHandle<Result<(), tungstenite::Error>>, JoinHandle<()>);
+    /// was successful, the JoinHandle can be awaited on. The buffer_name is used to clarify which exchange this buffer
+    /// belongs to and helps with logic in pushing to InfluxDB.
+    async fn build(buffer_name: &str) -> (JoinHandle<Result<(), tungstenite::Error>>, JoinHandle<()>);
 }
 ```
 

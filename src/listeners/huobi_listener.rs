@@ -112,7 +112,7 @@ impl Parser for HuobiParser {
                     bid_vector.to_vec()
                 };
 
-                if data_type == "incremental" {
+                if data_type == "update" {
                     let enum_creator = MarketIncremental {
                         symbol_pair,
                         asks,
@@ -165,7 +165,7 @@ impl SymbolHandler for HuobiSymbolHandler {
         for symbol in symbol_pairs {
             // market incremental
             let inc_subscription = json!({
-                "sub": format!("market.{}.depth.size_5.high_freq", symbol.to_lowercase()),
+                "sub": format!("market.{}.depth.size_20.high_freq", symbol.to_lowercase()),
                 "data_type": "incremental",
                 "id": format!("id_{}", symbol)
             })
@@ -174,7 +174,7 @@ impl SymbolHandler for HuobiSymbolHandler {
 
             // snapshot subscription
             let snap_subscription = json!({
-                "sub": format!("market.{}.depth.size_5.high_freq", symbol.to_lowercase()),
+                "sub": format!("market.{}.depth.size_20.high_freq", symbol.to_lowercase()),
                 "data_type": "snapshot",
                 "id": format!("id_{}", symbol)
             })

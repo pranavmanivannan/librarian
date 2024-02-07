@@ -46,7 +46,7 @@ pub trait Listener: Send + Sync {
                                     println!("Pong sent");
                                 }
                                 _ => {
-                                    // println!("parsed datapacket: {:?}", data_packet);
+                                    println!("parsed datapacket: {:?}", data_packet);
                                     let _ = sender_clone.send(data_packet);
                                 }
                             }

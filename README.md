@@ -2,36 +2,30 @@
 Multi-exchange market data ingestion and storage service.
 
 ## Storage System
-The data storage system has two core components:
+Core components:
+- `Exchange`
 - `Listener`
 - `Buffer`
 
-The core of the system revolves around the following loop:
-1) Spawn in multiple exchanges which contain listeners implementing the `Listener` trait.
-2) When each `Exchange` calls the `build` function, it will create two tasks, one which subscribes the listener to an
-exchange and one that creates a task for pushing to a `Buffer`.
-2) Each one of these listeners will be subscribed to one or more exchange endpoints to asynchronously receive messages from the exchange. (i.e. the `HuobiListener` will be subscribed to both `MarketIncremental` and `Snapshot` data).
-3) These listeners will send serialize `DataPacket` structs from the messages they receive and send them over a `mpsc::channel` to a `Buffer` running in another tokio task.
-4) Once a `Buffer` is full, the `Buffer` will send all data inside of it to InfluxDB and clear itself, allowing for more messages to be stored.
+## How it works:
+1) Call the `build` function for each exchange implementing the `Exchange` trait. This will create two tasks of the type `tokio::task::JoinHandle`.
+2) One of these tasks will subscribe the `Listener` for the exchange to all necessary endpoints and symbols. This task will also contain an `UnboundedReceiver` to send the parsed messages over a `mpsc::channel`.
+3) The other task will repeatedly poll an `UnboundedReceiver` for `DataPackets` and will send this data to a `Buffer` where it is sorted into multiple vectors depending on the type of data.
+4) Once a vector within a `Buffer` is full, the `Buffer` will send all data inside of this vector to InfluxDB and clear the vector, allowing for more messages to be stored.
 
 ## Implementation Details
-- On startup, the system will initially spawn in multiple `Exchange` to be used.
-- Afterwards, the system will spawn in multiple listeners and consume the `UnboundedSender` spawned in by the channel. Each listener will connect to a set of endpoints and symbols.
-- These exchanges return two `tokio::task::JoinHandle`, one that is for a `Buffer` to store data and one that is for the `Listener` to poll from a websocket connection.
-  - In the case a connection dies within a task, the loop will create a new websocket connection.
-- Alongside these listeners, there will be a `Buffer` spawned in for each listener, consuming the `UnboundedReceiver` end of the channels.
-- These buffers will continuously poll from the channels and call `ingest` on the received `DataPacket`. If a `Buffer` is full, it will call `push_to_influx` and send all data currently in that buffer to InfluxDB before clearing the buffer.
+- Each exchange (Huobi, Binance, ByBit, etc.) should only have one corresponding exchange file implementing `Exchange`. 
+- Each exchange should only have one listener with a websocket connection. All logic for multiple websocket endpoints and symbols should be handled when calling `connect`. Http polling is handled using a separate connection.
+- Additionally, each exchange only has one `Buffer`. These buffers can have multiple vectors within them for multiple endpoints, but no more than one buffer should exist per exchange.
+- In the case a websocket connection dies, the loop within the `tokio::task` will create a new websocket connection.
 
 ### Exchange
+The `Exchange` trait is used to build a comprehensive connection and storage loop per exchange. For exchanges such as Binance which may require multiple listeners (websocket for market incremental and http for snapshot data), a custom implementation of the exchange can be used instead.
 ```rust
 /// Trait that owns listener and buffer and builds system for each exchange
 #[async_trait]
 pub trait Exchange: Sized {
     type Listener: Listener;
-
-    /// Returns the websocket url held within the exchange. This is used when calling the listen function of the
-    /// Listener for this exchange.
-    fn get_socket_url(self) -> String;
 
     /// Creates a new Listener and Buffer using the owned channel.
     ///
@@ -43,9 +37,9 @@ pub trait Exchange: Sized {
 }
 ```
 
-The `Listener` trait is used to abstract the logic of polling from a websocket and pushing to a channel. As the `listen` logic is the same across all exchanges, it should not need to be heavily modified. The `connect` logic should be overriden accordingly due to some exchanges requiring a different order of operations to subscribe to multiple endpoints and all symbols.
-
 ### Listener
+The `Listener` trait is used to abstract the logic of polling from a websocket and pushing to a channel. As the `listen` logic is the same across all exchanges, it should not need to be heavily modified. The `connect` logic should be overriden accordingly per exchange due to endpoint formats and symbol subscriptions varying across exchanges.
+
 ```rust
 /// The main trait of the data storage system. It holds associated types to a SymbolHandler
 /// and Parser, each of which correspond to their own trait.
@@ -54,22 +48,21 @@ pub trait Listener: Send + Sync {
     type Parser: Parser;
     type SymbolHandler: SymbolHandler;
     async fn listen(
-        ws_url: &str,
         sender: UnboundedSender<DataPacket>,
     )-> JoinHandle<Result<(), Error>> {
         let sender_clone = sender.clone();
-        let url = ws_url.to_string();
         tokio::spawn(async move {
             loop {
-                let (mut write, mut read) = Self::connect(&url).await?;
+                let (mut write, mut read) = Self::connect().await?;
                 /// asynchronously receives messages and parses them
             }
         })
     }
 
-    async fn connect(
-        websocket_url: &str,
-    ) -> Result<
+    /// This function will be custom implemented per exchange. There is no websocket url passed in as an argument
+    /// as the listener.rs file for the exchange will contain it as a constant.
+    async fn connect() ->
+        Result<
         (
             SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
             SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
@@ -94,14 +87,23 @@ pub trait Parser {
 /// for each exchange and endpoint.
 pub trait SymbolHandler {
     fn get_symbols(
-    ) -> impl std::future::Future<Output = Result<Value, SymbolError>> + std::marker::Send;
+    ) -> impl std::future::Future<Output = Result<Symbols, SymbolError>> + std::marker::Send;
 }
 
 ```
 
+As shown in `SymbolHandler`, we use a `Symbols` enum to allow for multiple types of symbol formats to be passed in. This is due to the varying format of subscriptions across exchanges. For example, subscribing to all symbols for ByBit requires us to only send a single message, whereas Huobi requires us to manually send a subscription for each symbol.
+
+```rust
+pub enum Symbols {
+  SymbolVector(Vec<String>),
+  SymbolString(String),
+}
+```
+
 
 ### Data Packet
-The `DataPacket` Enum is crucial as it is how data is serialized once a `Message` has been read by a listener. Below is an example of the `Snapshot` struct of the `ST` variant in the enum.
+The `DataPacket` Enum is crucial as it is how data is serialized once a `Message` has been read by a listener. MarketIncremental and Snapshot are identical structs, but this allows for us to sort them based on the type of enum within the `Buffer` and sending the data to two separate buckets on InfluxDB. This reduces the memory overhead on the database for storing a flag to inform us of what type of data it is. Below is an example of the `Snapshot` struct of the `ST` variant in the enum.
 
 ```rust
 /// The DataPacket Enum contains various structs. This allows for the `Parser` trait to parse a `Message` from any
@@ -136,7 +138,7 @@ pub struct Snapshot {
 ```
 
 ### Error Handling
-There are multiple errors that can occur during retrieving symbols, parsing messages, or pushing to the buffers/InfluxDB. In order to account for this during runtime without using heap allocations caused by `Box<dyn std::error::Error>`, custom error types have been provided.
+There are multiple errors that can occur during retrieving symbols, parsing messages, or pushing to the buffers/InfluxDB. In order to account for this during runtime without using heap allocations caused by `Box<dyn std::error::Error>`, custom error types have been created. 
 
 ```rust
 /// When getting symbols there are two types of errors: reqwest errors and reading errors.
@@ -148,13 +150,13 @@ pub enum SymbolError {
     MissingSymbolsError,
 }
 
-/// When parsing there are two types of errors: json errors and parsing errors.
-/// Parsing errors require custom errors.
+/// When parsing there are multiple types of errors including json, utf8, and parsing errors.
 /// Creating a parsing error enum clarifies the error handling while still revealing exactly what caused the error.
 #[derive(Debug)]
 pub enum ParseError {
     JsonError(serde_json::Error),
     ParsingError,
+    Utf8Error(std::string::FromUtf8Error),
 }
 
 /// When pushing to InfluxDB, there are multiple errors that may occur within one function. To elegantly handle errors,
@@ -170,8 +172,7 @@ pub enum DBError {
 
 
 ### Buffers
-There are currently 3 exchanges, Huobi, Bybit, and Binance.
-The current implementation requires 3 buffers, each with multiple vectors within it, to store both Market Incremental and Snapshot data per exchange.
+There are currently 3 exchanges, Huobi, Bybit, and Binance. The current implementation requires 3 buffers, each with multiple vectors within it, to store both Market Incremental and Snapshot data per exchange. In the case of additional endpoints, adding another vector within the buffer and corresponding match arm for the `DataPacket` will easily scale it.
 
 ```rust
 /// A struct for making a buffer

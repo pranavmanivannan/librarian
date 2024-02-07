@@ -32,10 +32,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log4rs::init_config(config)?;
 
     let (binance_listener, binance_buffer) = BinanceExchange::build("Binance").await;
-    let (bybit_listener, bybit_buffer) = ByBitExchange::build("ByBit").await;
-    let (huobi_listener, huobi_buffer) = HuobiExchange::build("Huobi").await;
+    // let (bybit_listener, bybit_buffer) = ByBitExchange::build("ByBit").await;
+    // let (huobi_listener, huobi_buffer) = HuobiExchange::build("Huobi").await;
 
-    let _ = futures::join!(huobi_listener, huobi_buffer);
+    let _ = futures::join!(binance_listener, binance_buffer);
 
     Ok(())
 }

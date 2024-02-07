@@ -57,10 +57,11 @@ impl Listener for BinanceListener {
 impl Parser for BinanceParser {
     fn parse(message: Message) -> Result<DataPacket, ParseError> {
         let message_string = message.to_string();
-        let input_data: serde_json::Value =
+        let message_data: serde_json::Value =
             serde_json::from_str(&message_string).map_err(ParseError::JsonError)?;
 
-        if !input_data.is_null() && (input_data["e"] == "depthUpdate") {
+        if !message_data.is_null() && (message_data["data"]["e"] == "depthUpdate") {
+            let input_data = &message_data["data"];
             let data_type = input_data["e"].as_str().ok_or(ParseError::ParsingError)?;
             let symb_pair = input_data["s"]
                 .as_str()

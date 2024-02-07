@@ -7,15 +7,14 @@ use futures_util::stream::SplitSink;
 use futures_util::stream::SplitStream;
 use futures_util::SinkExt;
 use futures_util::StreamExt;
-use serde_json::{json, Value};
+use serde_json::Value;
 use tokio::net::TcpStream;
 use tokio_tungstenite::connect_async;
+use tokio_tungstenite::tungstenite::error::Error as TungsteniteError;
 use tokio_tungstenite::MaybeTlsStream;
 use tokio_tungstenite::WebSocketStream;
 use tungstenite::Error;
 use tungstenite::Message;
-use tokio_tungstenite::tungstenite::error::Error as TungsteniteError;
-use url::Url;
 
 use super::listener::Symbols;
 use super::listener::{Listener, Parser, SymbolHandler};
@@ -43,19 +42,7 @@ impl Listener for BinanceListener {
         let symbols = Self::SymbolHandler::get_symbols().await;
         if let Ok(Symbols::SymbolString(symbols)) = symbols {
             let binance_url = format!("{}/stream?streams={}", websocket_url, symbols.to_string());
-            println!("Binance URL: {}", binance_url);
-            let url_result = Url::parse(websocket_url);
-            let url = match url_result {
-                Ok(url) => url,
-                Err(err) => {
-                    let error_msg = format!("URL parse error: {err}");
-                    return Err(TungsteniteError::Io(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        error_msg,
-                    )));
-                }
-            };
-            let (socket, _) = connect_async(url).await?;
+            let (socket, _) = connect_async(binance_url).await?;
             let (mut write, read) = socket.split();
             let _ = write.send(Message::Text(symbols.to_string())).await;
             return Ok((write, read));
@@ -139,16 +126,11 @@ impl SymbolHandler for BinanceSymbolHandler {
         // market inc
         let mut symbol_list: Vec<String> = Vec::new();
         for symbol in symbol_pairs {
-            symbol_list.push(format!("{symbol}@depth"));
+            symbol_list.push(format!("{}@depth", symbol.to_lowercase()));
         }
 
         log::info!("Binance - Successfully retrieved all symbols!");
 
-        // let symbols = json!({
-        //     "op": "SUBSCRIBE",
-        //     "params": symbol_list,
-        //     "id": 1
-        // });
         let symbols = symbol_list.join("/");
 
         Ok(Symbols::SymbolString(symbols))

@@ -13,10 +13,8 @@ use tokio::net::TcpStream;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::MaybeTlsStream;
 use tokio_tungstenite::WebSocketStream;
-use tokio_tungstenite::tungstenite::error::Error as TungsteniteError;
 use tungstenite::Error;
 use tungstenite::Message;
-use url::Url;
 
 use super::listener::Symbols;
 use super::listener::{Listener, Parser, SymbolHandler};
@@ -43,19 +41,7 @@ impl Listener for ByBitListener {
         ),
         Error,
     > {
-        let url_result = Url::parse(websocket_url);
-        let url = match url_result {
-            Ok(url) => url,
-            Err(err) => {
-                let error_msg = format!("URL parse error: {err}");
-                return Err(TungsteniteError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    error_msg,
-                )));
-            }
-        };
-
-        let (socket, _) = connect_async(url).await?;
+        let (socket, _) = connect_async(websocket_url).await?;
         let (mut write, read) = socket.split();
         let symbols = Self::SymbolHandler::get_symbols().await;
         if let Ok(Symbols::SymbolString(symbols)) = symbols {

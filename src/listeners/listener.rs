@@ -5,7 +5,6 @@ use async_trait::async_trait;
 use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::SinkExt;
 use futures_util::StreamExt;
-use serde_json::Value;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task::JoinHandle;
@@ -41,7 +40,6 @@ pub trait Listener: Send + Sync {
                     if let Message::Close(_) = message {
                         break;
                     } else {
-                        // println!("Received message: {:?}", message);
                         let data_packet = Self::Parser::parse(message);
                         if let Ok(data_packet) = data_packet {
                             match data_packet {

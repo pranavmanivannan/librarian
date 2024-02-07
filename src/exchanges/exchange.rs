@@ -8,12 +8,12 @@ pub trait Exchange: Sized {
 
     fn get_socket_url(self) -> String;
 
-    async fn build(self) -> (JoinHandle<()>, JoinHandle<Result<(), tungstenite::Error>>) {
+    async fn build(self) -> (JoinHandle<Result<(), tungstenite::Error>>, JoinHandle<()>) {
         let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
         let websocket_url = self.get_socket_url();
         let listener = Self::Listener::listen(&websocket_url, sender).await;
         let buffer = Buffer::create_task("ByBit", 500, receiver);
 
-        return (buffer, listener);
+        return (listener, buffer);
     }
 }

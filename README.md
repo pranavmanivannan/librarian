@@ -39,19 +39,8 @@ pub trait Exchange: Sized {
     /// for DataPackets and pushes it to a Buffer. This loop will be returned as a JoinHandle<()>. The other task
     /// creates a `Listener` will return a JoinHandle<Result<(), tungstenite::Error>>. If the creation of the task
     /// was successful, the JoinHandle can be awaited on.
-    async fn build(self) -> (JoinHandle<()>, JoinHandle<Result<(), tungstenite::Error>>);
+    async fn build(self) -> (JoinHandle<Result<(), tungstenite::Error>>, JoinHandle<()>);
 }
-
-/// The Listener trait contains listen which connects to a websocket and listens and parses data
-pub trait Listener {
-    fn listen(message: Message) -> Result<DataPacket, ParseError>;
-}
-
-/// The BufferHandler trait contains buffer which instantiates buffer and sends data to Influx.
-pub trait BufferHandler {
-    async fn build_buffer() -> Buffer;
-}
-
 ```
 
 The `Listener` trait is used to abstract the logic of polling from a websocket and pushing to a channel. As the `listen` logic is the same across all exchanges, it should not need to be heavily modified. The `connect` logic should be overriden accordingly due to some exchanges requiring a different order of operations to subscribe to multiple endpoints and all symbols.
@@ -123,8 +112,9 @@ pub enum DataPacket {
     MI(MarketIncremental),
     /// Serializes orderbook snapshots.
     ST(Snapshot),
-    /// For exchanges that need to be informed to send pings. The i64 will contain the pong response.
-    Ping(i64),
+    /// For exchanges that need to be informed to send pings. The String will contain the pong response that we can
+    /// directly send to the exchange.
+    Ping(String),
 }
 
 /// Snapshot struct used to serialize data from orderbook snapshot endpoints on exchanges.
@@ -159,7 +149,7 @@ pub enum SymbolError {
 }
 
 /// When parsing there are two types of errors: json errors and parsing errors.
-/// parsing errors require custom errors.
+/// Parsing errors require custom errors.
 /// Creating a parsing error enum clarifies the error handling while still revealing exactly what caused the error.
 #[derive(Debug)]
 pub enum ParseError {
@@ -167,7 +157,9 @@ pub enum ParseError {
     ParsingError,
 }
 
-/// Same for DB errors
+/// When pushing to InfluxDB, there are multiple errors that may occur within one function. To elegantly handle errors,
+/// the DBError is a custom error type that allows for the use of the `?` operator and allows for logging of what
+/// error occurred.
 pub enum DBError {
     HttpError(reqwest::StatusCode),
     ReqwestError(reqwest_middleware::Error),
@@ -177,18 +169,16 @@ pub enum DBError {
 ```
 
 
-
 ### Buffers
 There are currently 3 exchanges, Huobi, Bybit, and Binance.
-The current implementation will require 6 buffers to store both Market Incremental and Snapshot data for each.
-
-- TODO: Possibly make each buffer contain multiple vectors instead and sort the data within the buffer per exchange.
+The current implementation requires 3 buffers, each with multiple vectors within it, to store both Market Incremental and Snapshot data per exchange.
 
 ```rust
 /// A struct for making a buffer
 pub struct Buffer {
     client: reqwest_middleware::ClientWithMiddleware,
-    storage: Vec<String>,
+    snapshots: Vec<String>,
+    incrementals: Vec<String>,
     bucket: String,
     capacity: usize,
 }
@@ -198,21 +188,21 @@ impl Buffer {
     /// Creates a new buffer with a reqwest client to push to InfluxDB.
     ///
     /// # Arguments
-    /// * `bucket_name` - The name of the bucket on InfluxDB.
+    /// * `buffer_name` - The name of the exchange.
     /// * `capacity` - The capacity of the buffer before it pushes to InfluxDB.
-    pub fn new(bucket_name: &str, capacity: usize) -> Buffer {}
+    pub fn new(buffer_name: &str, capacity: usize) -> Buffer {}
 
     /// A function that creates a new buffer and then creates a tokio::task using that buffer,
     ///
     /// # Arguments
-    /// * `bucket_name` - The name of the bucket on InfluxDB.
-    /// * `capacity` - The capacity of the buffer before it pushes to InfluxDB.
+    /// * `buffer_name` - The name of the exchange.
+    /// * `capacity` - The capacity of the vectors within the buffer before they push to InfluxDB.
     /// * `receiver` - An `UnboundedReceiver` that receives the type `DataPacket`.
     ///
     /// # Returns
     /// A JoinHandle to use.
     pub fn create_task(
-        bucket_name: &str,
+        buffer_name: &str,
         capacity: usize,
         receiver: UnboundedReceiver<DataPacket>,
     ) -> JoinHandle<()> {}
@@ -226,7 +216,6 @@ impl Buffer {
     /// A Result with an empty Ok or a DBError if the DataPacket couldn't be pushed.
     pub async fn ingest(&mut self, data_packet: DataPacket) -> Result<(), DBError> {}
 
-    /// Pushes data from a buffer to an InfluxDB bucket and clears the buffer afterwards.
     /// Pushes data from a buffer to an InfluxDB bucket and clears the buffer afterwards.
     ///
     /// # Arguments

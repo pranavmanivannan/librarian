@@ -11,13 +11,13 @@ Core components:
 1) Call the `build` function for each exchange implementing the `Exchange` trait. This will create two tasks of the type `tokio::task::JoinHandle`.
 2) One of these tasks will subscribe the `Listener` for the exchange to all necessary endpoints and symbols. This task will also contain an `UnboundedReceiver` to send the parsed messages over a `mpsc::channel`.
 3) The other task will repeatedly poll an `UnboundedReceiver` for `DataPackets` and will send this data to a `Buffer` where it is sorted into multiple vectors depending on the type of data.
-4) Once a vector within a `Buffer` is full, the `Buffer` will send all data inside of this vector to InfluxDB and clear the vector, allowing for more messages to be stored.
+4) Once a `Buffer` is full, the `Buffer` will send all data inside to InfluxDB and clear itself, allowing for more messages to be stored.
 
 ## Implementation Details
 - Each exchange (Huobi, Binance, ByBit, etc.) should only have one corresponding exchange file implementing `Exchange`. 
 - Each exchange should only have one listener with a websocket connection. All logic for multiple websocket endpoints and symbols should be handled when calling `connect`. Http polling is handled using a separate connection.
-- Additionally, each exchange only has one `Buffer`. These buffers can have multiple vectors within them for multiple endpoints, but no more than one buffer should exist per exchange.
-- In the case a websocket connection dies, the loop within the `tokio::task` will create a new websocket connection.
+- Additionally, each exchange has multiple buffers. The current implementation requires 6 total buffers as we store 2 endpoints (market incremental and snapshot) per exchange. No more than one background task holding these buffers should exist per exchange.
+- In the case a websocket connection dies, the loop within the `tokio::task` will create a new websocket connection. This occurs by recreating the `WebSocketStream` connection and splitting it, rather than recreating the entire listener.
 
 ### Exchange
 The `Exchange` trait is used to build a comprehensive connection and storage loop per exchange. For exchanges such as Binance which may require multiple listeners (websocket for market incremental and http for snapshot data), a custom implementation of the exchange can be used instead.
@@ -172,7 +172,7 @@ pub enum DBError {
 
 
 ### Buffers
-There are currently 3 exchanges, Huobi, Bybit, and Binance. The current implementation requires 3 buffers, each with multiple vectors within it, to store both Market Incremental and Snapshot data per exchange. In the case of additional endpoints, adding another vector within the buffer and corresponding match arm for the `DataPacket` will easily scale it.
+There are currently 3 exchanges, Huobi, Bybit, and Binance. The current implementation requires 6 buffers to store both Market Incremental and Snapshot data per exchange. In the case of additional endpoints, adding another buffer to the exchange's corresponding background task will easily scale it.
 
 ```rust
 /// A struct for making a buffer

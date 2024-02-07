@@ -7,16 +7,18 @@ The data storage system has two core components:
 - `Buffer`
 
 The core of the system revolves around the following loop:
-1) Spawn in multiple listeners which implement the `Listener` trait.
-2) Subscribe each listener to one or more exchange endpoints to asynchronously receive messages from the exchange. (i.e. the `HuobiListener` will be subscribed to both `MarketIncremental` and `Snapshot` data).
-3) Each listener will send serialize `DataPacket` structs from the messages they receive and send them over a `mpsc::channel` to a `Buffer` running in another tokio task.
+1) Spawn in multiple exchanges which contain listeners implementing the `Listener` trait.
+2) When each `Exchange` calls the `build` function, it will create two tasks, one which subscribes the listener to an
+exchange and one that creates a task for pushing to a `Buffer`.
+2) Each one of these listeners will be subscribed to one or more exchange endpoints to asynchronously receive messages from the exchange. (i.e. the `HuobiListener` will be subscribed to both `MarketIncremental` and `Snapshot` data).
+3) These listeners will send serialize `DataPacket` structs from the messages they receive and send them over a `mpsc::channel` to a `Buffer` running in another tokio task.
 4) Once a `Buffer` is full, the `Buffer` will send all data inside of it to InfluxDB and clear itself, allowing for more messages to be stored.
 
 ## Implementation Details
-- On startup, the system will initially spawn in multiple `mpsc::channel` to be used.
+- On startup, the system will initially spawn in multiple `Exchange` to be used.
 - Afterwards, the system will spawn in multiple listeners and consume the `UnboundedSender` spawned in by the channel. Each listener will connect to a set of endpoints and symbols.
-- These listeners return a `tokio::task::JoinHandle`, and each listener will be awaited on within a `tokio::task`.
-  - In the case a connection dies within a task, the loop will create a new task and respawn the listener task before awaiting it.
+- These exchanges return two `tokio::task::JoinHandle`, one that is for a `Buffer` to store data and one that is for the `Listener` to poll from a websocket connection.
+  - In the case a connection dies within a task, the loop will create a new websocket connection.
 - Alongside these listeners, there will be a `Buffer` spawned in for each listener, consuming the `UnboundedReceiver` end of the channels.
 - These buffers will continuously poll from the channels and call `ingest` on the received `DataPacket`. If a `Buffer` is full, it will call `push_to_influx` and send all data currently in that buffer to InfluxDB before clearing the buffer.
 
@@ -24,19 +26,20 @@ The core of the system revolves around the following loop:
 ```rust
 /// Trait that owns listener and buffer and builds system for each exchange
 #[async_trait]
-pub trait Exchange {
+pub trait Exchange: Sized {
     type Listener: Listener;
-    type BufferHandler: BufferHandler;
-    type channel = tokio::sync::mpsc::unbounded_channel();
+
+    /// Returns the websocket url held within the exchange. This is used when calling the listen function of the
+    /// Listener for this exchange.
+    fn get_socket_url(self) -> String;
 
     /// Creates a new Listener and Buffer using the owned channel.
     ///
-    /// Creating a `Buffer` using the `BufferHandler` will create the task using the receiver end of the channel
-    /// and will spawn a `tokio::task` that runs `storage_loop`.
-    ///
-    /// Creating a `Listener` will return a Result containing a JoinHandle if the creation was successful, else
-    /// it will return an Error. The JoinHandle can be awaited on.
-    async fn build() -> Result<JoinHandle, Error> {}
+    /// This will create two tasks, the first of which runs a loop which continuously polls an UnboundedReceiver
+    /// for DataPackets and pushes it to a Buffer. This loop will be returned as a JoinHandle<()>. The other task
+    /// creates a `Listener` will return a JoinHandle<Result<(), tungstenite::Error>>. If the creation of the task
+    /// was successful, the JoinHandle can be awaited on.
+    async fn build(self) -> (JoinHandle<()>, JoinHandle<Result<(), tungstenite::Error>>);
 }
 
 /// The Listener trait contains listen which connects to a websocket and listens and parses data
@@ -51,23 +54,27 @@ pub trait BufferHandler {
 
 ```
 
+The `Listener` trait is used to abstract the logic of polling from a websocket and pushing to a channel. As the `listen` logic is the same across all exchanges, it should not need to be heavily modified. The `connect` logic should be overriden accordingly due to some exchanges requiring a different order of operations to subscribe to multiple endpoints and all symbols.
+
 ### Listener
 ```rust
 /// The main trait of the data storage system. It holds associated types to a SymbolHandler
 /// and Parser, each of which correspond to their own trait.
 #[async_trait]
-pub trait Listener<
-    R: Stream<Item = Result<Message, Error>> + Unpin + Send + 'static,
-    W: Sink<Message> + Unpin + Send + 'static,
->: Sized
-{
+pub trait Listener: Send + Sync {
     type Parser: Parser;
     type SymbolHandler: SymbolHandler;
-    fn split(self) -> (R, W);
-    async fn listen(self, sender: UnboundedSender<DataPacket>) -> JoinHandle<Result<(), Error>> {
-        let (mut r, _) = self.split();
+    async fn listen(
+        ws_url: &str,
+        sender: UnboundedSender<DataPacket>,
+    )-> JoinHandle<Result<(), Error>> {
+        let sender_clone = sender.clone();
+        let url = ws_url.to_string();
         tokio::spawn(async move {
-            /// asynchronously receives messages and parses them
+            loop {
+                let (mut write, mut read) = Self::connect(&url).await?;
+                /// asynchronously receives messages and parses them
+            }
         })
     }
 
@@ -97,7 +104,8 @@ pub trait Parser {
 /// The SymbolHandler trait contains the get_symbols method which is custom implemented
 /// for each exchange and endpoint.
 pub trait SymbolHandler {
-    async fn get_symbols() -> Result<Value, SymbolError>;
+    fn get_symbols(
+    ) -> impl std::future::Future<Output = Result<Value, SymbolError>> + std::marker::Send;
 }
 
 ```
@@ -117,8 +125,6 @@ pub enum DataPacket {
     ST(Snapshot),
     /// For exchanges that need to be informed to send pings. The i64 will contain the pong response.
     Ping(i64),
-    /// Flags data as invalid.
-    Invalid,
 }
 
 /// Snapshot struct used to serialize data from orderbook snapshot endpoints on exchanges.
@@ -195,6 +201,21 @@ impl Buffer {
     /// * `bucket_name` - The name of the bucket on InfluxDB.
     /// * `capacity` - The capacity of the buffer before it pushes to InfluxDB.
     pub fn new(bucket_name: &str, capacity: usize) -> Buffer {}
+
+    /// A function that creates a new buffer and then creates a tokio::task using that buffer,
+    ///
+    /// # Arguments
+    /// * `bucket_name` - The name of the bucket on InfluxDB.
+    /// * `capacity` - The capacity of the buffer before it pushes to InfluxDB.
+    /// * `receiver` - An `UnboundedReceiver` that receives the type `DataPacket`.
+    ///
+    /// # Returns
+    /// A JoinHandle to use.
+    pub fn create_task(
+        bucket_name: &str,
+        capacity: usize,
+        receiver: UnboundedReceiver<DataPacket>,
+    ) -> JoinHandle<()> {}
 
     /// A separate function that sorts datapackets and pushes it to buffer
     ///

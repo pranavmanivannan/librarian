@@ -28,14 +28,12 @@ pub trait Listener: Send + Sync {
     /// # Returns
     /// A JoinHandle to be awaited on within a tokio::task.
     async fn listen(
-        ws_url: &str,
         sender: UnboundedSender<DataPacket>,
     ) -> JoinHandle<Result<(), tungstenite::Error>> {
         let sender_clone = sender.clone();
-        let url = ws_url.to_string();
         tokio::spawn(async move {
             loop {
-                let (mut write, mut read) = Self::connect(&url).await?;
+                let (mut write, mut read) = Self::connect().await?;
                 while let Some(Ok(message)) = read.next().await {
                     if let Message::Close(_) = message {
                         break;
@@ -66,31 +64,13 @@ pub trait Listener: Send + Sync {
     ///
     /// # Returns
     /// Two halves of a WebSocketStream.
-    async fn connect(
-        websocket_url: &str,
-    ) -> Result<
+    async fn connect() -> Result<
         (
             SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
             SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
         ),
         Error,
-    > {
-        let url_result = Url::parse(websocket_url);
-        let url = match url_result {
-            Ok(url) => url,
-            Err(err) => {
-                let error_msg = format!("URL parse error: {err}");
-                return Err(TungsteniteError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    error_msg,
-                )));
-            }
-        };
-
-        let (socket, _) = connect_async(url).await?;
-        let (write, read) = socket.split();
-        return Ok((write, read));
-    }
+    >;
 }
 
 /// The `Parser` trait contains the singular parse function that is custom implemented

@@ -19,6 +19,7 @@ use tungstenite::Message;
 use super::listener::Symbols;
 use super::listener::{Listener, Parser, SymbolHandler};
 
+const BINANCE_WS: &str = "wss://fstream.binance.com";
 const BINANCE_SYMBOL_API: &str = "https://api.binance.us/api/v3/exchangeInfo";
 
 pub struct BinanceListener {}
@@ -30,9 +31,7 @@ impl Listener for BinanceListener {
     type Parser = BinanceParser;
     type SymbolHandler = BinanceSymbolHandler;
 
-    async fn connect(
-        websocket_url: &str,
-    ) -> Result<
+    async fn connect() -> Result<
         (
             SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
             SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
@@ -41,7 +40,7 @@ impl Listener for BinanceListener {
     > {
         let symbols = Self::SymbolHandler::get_symbols().await;
         if let Ok(Symbols::SymbolString(symbols)) = symbols {
-            let binance_url = format!("{}/stream?streams={}", websocket_url, symbols);
+            let binance_url = format!("{}/stream?streams={}", BINANCE_WS, symbols);
             let (socket, _) = connect_async(binance_url).await?;
             let (mut write, read) = socket.split();
             let _ = write.send(Message::Text(symbols.to_string())).await;

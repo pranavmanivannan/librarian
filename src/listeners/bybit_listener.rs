@@ -19,6 +19,8 @@ use tungstenite::Message;
 use super::listener::Symbols;
 use super::listener::{Listener, Parser, SymbolHandler};
 
+/// The websocket url used to connect to ByBit's perpetuals and futures market data.
+const BYBIT_WS: &str = "wss://stream.bybit.com/v5/public/linear";
 /// The http url used to request all symbols on ByBit's market.
 const BYBIT_SYMBOL_API: &str = "https://api-testnet.bybit.com/v5/market/tickers?category=linear";
 
@@ -32,16 +34,14 @@ impl Listener for ByBitListener {
     type Parser = ByBitParser;
     type SymbolHandler = ByBitSymbolHandler;
 
-    async fn connect(
-        websocket_url: &str,
-    ) -> Result<
+    async fn connect() -> Result<
         (
             SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
             SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
         ),
         Error,
     > {
-        let (socket, _) = connect_async(websocket_url).await?;
+        let (socket, _) = connect_async(BYBIT_WS).await?;
         let (mut write, read) = socket.split();
         let symbols = Self::SymbolHandler::get_symbols().await;
         if let Ok(Symbols::SymbolString(symbols)) = symbols {

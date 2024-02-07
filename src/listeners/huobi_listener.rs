@@ -22,6 +22,8 @@ use tungstenite::Message;
 use super::listener::Symbols;
 use super::listener::{Listener, Parser, SymbolHandler};
 
+/// The websocket url used to connect to Huobi
+const HUOBI_WS: &str = "wss://api.hbdm.vn/linear-swap-ws";
 /// The http url used to request all symbols on Huobi's market.
 const HUOBI_SYMBOL_API: &str = "https://api.hbdm.vn/linear-swap-api/v1/swap_contract_info";
 
@@ -34,16 +36,14 @@ impl Listener for HuobiListener {
     type Parser = HuobiParser;
     type SymbolHandler = HuobiSymbolHandler;
 
-    async fn connect(
-        websocket_url: &str,
-    ) -> Result<
+    async fn connect() -> Result<
         (
             SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
             SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
         ),
         Error,
     > {
-        let (socket, _) = connect_async(websocket_url).await?;
+        let (socket, _) = connect_async(HUOBI_WS).await?;
         let (mut write, read) = socket.split();
         let symbols = Self::SymbolHandler::get_symbols().await;
         if let Ok(Symbols::SymbolVector(symbols)) = symbols {

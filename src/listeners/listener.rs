@@ -47,7 +47,15 @@ pub trait Listener: Send + Sync {
                     } else {
                         let data_packet = Self::Parser::parse(message);
                         if let Ok(data_packet) = data_packet {
-                            let _ = sender_clone.send(data_packet);
+                            match data_packet {
+                                DataPacket::Ping(pong) => {
+                                    let _ = write.send(Message::Text(pong)).await;
+                                    println!("Pong sent");
+                                }
+                                _ => {
+                                    let _ = sender_clone.send(data_packet);
+                                }
+                            }
                         }
                     }
                 }
@@ -56,7 +64,7 @@ pub trait Listener: Send + Sync {
     }
 
     /// Uses a url to connect to a valid WebSocketStream and then splits it into the read and write halves
-    /// of the stream.
+    /// of the stream. Each listener should have a custom implementation that overrides this function.
     ///
     /// # Arguments
     /// * `websocket_url` - A &str containing a valid websocket url to connect to.

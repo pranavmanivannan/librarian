@@ -19,6 +19,7 @@ impl fmt::Display for SymbolError {
 pub enum ParseError {
     JsonError(serde_json::Error),
     ParsingError,
+    Utf8Error(std::string::FromUtf8Error),
 }
 
 impl fmt::Display for ParseError {
@@ -26,6 +27,7 @@ impl fmt::Display for ParseError {
         match *self {
             ParseError::JsonError(ref error) => write!(f, "Json Error: {}", error),
             ParseError::ParsingError => write!(f, "Parsing Error"),
+            ParseError::Utf8Error(ref error) => write!(f, "UTF-8 Error: {}", error),
         }
     }
 }

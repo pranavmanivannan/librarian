@@ -10,7 +10,7 @@ pub enum DataPacket {
     /// Serializes orderbook snapshots.
     ST(Snapshot),
     /// For exchanges that need to be informed to send pings. The i64 will contain the pong response.
-    Ping(i64),
+    Ping(String),
 }
 
 /// Market Incremental struct used to serialize data from market incremental endpoints on exchanges.

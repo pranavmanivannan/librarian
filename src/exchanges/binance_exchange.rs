@@ -26,13 +26,12 @@ impl BinanceExchange {
         let buffer = Buffer::create_task(exchange_name, 500, receiver);
 
         let http_listener: tokio::task::JoinHandle<Result<(), SymbolError>> = tokio::spawn(async move {
-            // let sender_clone = sender.clone()
             loop {
                 let symbols = BinanceSymbolHandler::get_symbols().await;
                 if let Ok(Symbols::SymbolVector(symbols)) = symbols {
                     for symbol in symbols {
-                        let new_symbol = symbol.replace("@depth", "");
-                        let url = format!("{}{}&limit=5", BINANCE_HTTP, new_symbol.to_uppercase());
+                        let new_symbol = symbol.replace("@depth", "").to_uppercase();
+                        let url = format!("{}{}&limit=5", BINANCE_HTTP, new_symbol);
                         println!("url: {:?}", url);
                         let response = match reqwest::get(url).await {
                             Ok(res) => res.text().await,
@@ -45,8 +44,7 @@ impl BinanceExchange {
                                     match data_packet {
                                         DataPacket::ST(mut packet) => {
                                             packet.symbol_pair = new_symbol;
-                                            // send packet here
-                                            println!("sending packet {:?}", packet);
+                                            let _ = sender.send(DataPacket::ST(packet));
                                         }
                                         _ => {}
                                     }

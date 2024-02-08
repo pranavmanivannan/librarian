@@ -13,7 +13,7 @@ use crate::{
     },
 };
 
-use super::exchange::Exchange;
+use super::exchange::{Exchange, TaskSet};
 
 const BINANCE_HTTP: &str = "https://fapi.binance.com/fapi/v1/depth?symbol=";
 
@@ -22,21 +22,15 @@ pub struct BinanceExchange {}
 #[async_trait]
 impl Exchange for BinanceExchange {
     type Listener = BinanceListener;
-}
 
-impl BinanceExchange {
-    pub async fn build_with_http(
+    async fn build(
         exchange_name: &str,
-    ) -> (
-        JoinHandle<Result<(), tungstenite::Error>>,
-        JoinHandle<()>,
-        JoinHandle<Result<(), SymbolError>>,
-    ) {
+    ) -> TaskSet {
         let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
         let listener = BinanceListener::listen(sender.clone()).await;
         let buffer = Buffer::create_task(exchange_name, 500, receiver);
 
-        let http_listener: tokio::task::JoinHandle<Result<(), SymbolError>> =
+        let http_listener: JoinHandle<Result<(), SymbolError>> =
             tokio::spawn(async move {
                 loop {
                     let symbols = BinanceSymbolHandler::get_symbols().await;
@@ -44,7 +38,7 @@ impl BinanceExchange {
                         for symbol in symbols {
                             let new_symbol = symbol.replace("@depth", "").to_uppercase();
                             let url = format!("{}{}&limit=5", BINANCE_HTTP, new_symbol);
-                            println!("url: {:?}", url);
+                            // println!("url: {:?}", url);
                             let response = match reqwest::get(url).await {
                                 Ok(res) => res.text().await,
                                 Err(err) => return Err(SymbolError::ReqwestError(err)),
@@ -65,6 +59,6 @@ impl BinanceExchange {
                 }
             });
 
-        (listener, buffer, http_listener)
+        TaskSet::Extended(listener, buffer, http_listener)
     }
 }

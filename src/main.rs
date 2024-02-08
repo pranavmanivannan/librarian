@@ -1,5 +1,5 @@
 use exchanges::{
-    binance_exchange::BinanceExchange, bybit_exchange::ByBitExchange, exchange::Exchange,
+    binance_exchange::BinanceExchange, bybit_exchange::ByBitExchange, exchange::{Exchange, TaskSet},
     huobi_exchange::HuobiExchange,
 };
 use log::LevelFilter;
@@ -31,20 +31,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log4rs::init_config(config)?;
 
-    let (bybit_listener, bybit_buffer) = ByBitExchange::build("ByBit").await;
-    let (huobi_listener, huobi_buffer) = HuobiExchange::build("Huobi").await;
-    let (binance_listener, binance_buffer, binance_http) =
-        BinanceExchange::build_with_http("Binance").await;
+    let bybit = ByBitExchange::build("ByBit").await;
+    let huobi = HuobiExchange::build("Huobi").await;
+    let binance = BinanceExchange::build("Binance").await;
 
-    let _ = futures::join!(
-        bybit_listener,
-        bybit_buffer,
-        huobi_listener,
-        huobi_buffer,
-        binance_listener,
-        binance_buffer,
-        binance_http
-    );
+    for exchange in [bybit, huobi, binance] {
+        match exchange {
+            TaskSet::Default(listener, buffer) => {
+                let _ = tokio::join!(listener, buffer);
+            },
+            TaskSet::Extended(listener, buffer, additional) => {
+                let _ = tokio::join!(listener, buffer, additional);
+            },
+        }
+    }
 
     Ok(())
 }

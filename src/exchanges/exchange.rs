@@ -7,11 +7,11 @@ pub trait Exchange: Sized {
     type Listener: Listener;
 
     async fn build(
-        buffer_name: &str,
+        exchange_name: &str,
     ) -> (JoinHandle<Result<(), tungstenite::Error>>, JoinHandle<()>) {
         let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
         let listener = Self::Listener::listen(sender).await;
-        let buffer = Buffer::create_task(buffer_name, 500, receiver);
+        let buffer = Buffer::create_task(exchange_name, 500, receiver);
 
         return (listener, buffer);
     }

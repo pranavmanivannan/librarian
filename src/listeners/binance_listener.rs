@@ -38,8 +38,9 @@ impl Listener for BinanceListener {
         ),
         Error,
     > {
-        let symbols = Self::SymbolHandler::get_symbols().await;
-        if let Ok(Symbols::SymbolString(symbols)) = symbols {
+        let symbol_list = Self::SymbolHandler::get_symbols().await;
+        if let Ok(Symbols::SymbolVector(symbol_list)) = symbol_list {
+            let symbols = symbol_list.join("/");
             let binance_url = format!("{}/stream?streams={}", BINANCE_WS, symbols);
             let (socket, _) = connect_async(binance_url).await?;
             let (mut write, read) = socket.split();
@@ -131,8 +132,6 @@ impl SymbolHandler for BinanceSymbolHandler {
 
         log::info!("Binance - Successfully retrieved all symbols!");
 
-        let symbols = symbol_list.join("/");
-
-        Ok(Symbols::SymbolString(symbols))
+        Ok(Symbols::SymbolVector(symbol_list))
     }
 }

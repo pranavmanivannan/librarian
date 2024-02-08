@@ -8,10 +8,8 @@ use futures_util::StreamExt;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task::JoinHandle;
-use tokio_tungstenite::tungstenite::error::Error as TungsteniteError;
-use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tungstenite::{Error, Message};
-use url::Url;
 
 /// The main trait of the data storage system. It holds associated types to a SymbolHandler
 /// and Parser, each of which correspond to their own trait.
@@ -46,7 +44,6 @@ pub trait Listener: Send + Sync {
                                     println!("Pong sent");
                                 }
                                 _ => {
-                                    println!("parsed datapacket: {:?}", data_packet);
                                     let _ = sender_clone.send(data_packet);
                                 }
                             }

@@ -33,9 +33,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // let (binance_listener, binance_buffer) = BinanceExchange::build("Binance").await;
     // let (bybit_listener, bybit_buffer) = ByBitExchange::build("ByBit").await;
-    let (huobi_listener, huobi_buffer) = HuobiExchange::build("Huobi").await;
+    // let (huobi_listener, huobi_buffer) = HuobiExchange::build("Huobi").await;
+    let (binance_listener, binance_buffer, binance_http) = BinanceExchange::build_with_http("Binance").await;
 
-    let _ = futures::join!(huobi_listener, huobi_buffer);
+    let _ = futures::join!(binance_http);
 
     Ok(())
 }

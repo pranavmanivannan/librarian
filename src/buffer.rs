@@ -12,7 +12,8 @@ const ORGANIZATION: &str = "Quant Dev";
 /// A struct for making a buffer
 pub struct Buffer {
     client: reqwest_middleware::ClientWithMiddleware,
-    storage: Vec<String>,
+    snapshots: Vec<String>,
+    incrementals: Vec<String>,
     bucket: String,
     capacity: usize,
 }
@@ -40,7 +41,8 @@ impl Buffer {
 
         Buffer {
             client: reqwest_client,
-            storage: Vec::with_capacity(capacity),
+            snapshots: Vec::with_capacity(capacity),
+            incrementals: Vec::with_capacity(capacity),
             bucket: bucket_name.to_string(),
             capacity,
         }
@@ -72,19 +74,39 @@ impl Buffer {
     /// # Returns
     /// A Result with an empty Ok or a DBError if the DataPacket couldn't be pushed.
     pub async fn ingest(&mut self, data_packet: DataPacket) -> Result<(), DBError> {
-        let message = match &data_packet {
+        match &data_packet {
             DataPacket::MI(msg) => {
                 let asks = serde_json::to_string(&msg.asks).map_err(DBError::JsonError)?;
                 let bids = serde_json::to_string(&msg.bids).map_err(DBError::JsonError)?;
-                format!(
+                let message = format!(
                     "{}, asks={}, bids={}, cur_seq={}, prev_seq={}, timestamp={}",
                     msg.symbol_pair, asks, bids, msg.cur_seq, msg.prev_seq, msg.timestamp
-                )
+                );
+                self.incrementals.push(message);
+                if self.incrementals.len() == self.capacity {
+                    self.push_to_influx(DataType::MI).await?;
+                    self.incrementals.clear();
+                }
+                Ok(())
             }
-            _ => "".to_string(),
-        };
+            DataPacket::ST(msg) => {
+                let asks = serde_json::to_string(&msg.asks).map_err(DBError::JsonError)?;
+                let bids = serde_json::to_string(&msg.bids).map_err(DBError::JsonError)?;
+                let message = format!(
+                    "{}, asks={}, bids={}, cur_seq={}, prev_seq={}, timestamp={}",
+                    msg.symbol_pair, asks, bids, msg.cur_seq, msg.prev_seq, msg.timestamp
+                );
+                self.snapshots.push(message);
+                if self.snapshots.len() == self.capacity {
+                    self.push_to_influx(DataType::ST).await?;
+                    self.snapshots.clear();
+                }
+                Ok(())
+            }
+            DataPacket::Ping(_) => Ok(()),
+        }
 
-        self.push_and_flush(message).await
+        // self.push_and_flush(message).await
     }
     /// Pushes data from a buffer to an InfluxDB bucket and clears the buffer afterwards.
     ///
@@ -93,24 +115,29 @@ impl Buffer {
     ///
     /// # Returns
     /// A Result that is either empty or a DBError if the message couldn't be pushed to a buffer.
-    pub async fn push_and_flush(&mut self, message: String) -> Result<(), DBError> {
-        self.storage.push(message);
+    // pub async fn push_and_flush(&mut self, message: (String, DataType)) -> Result<(), DBError> {
 
-        if self.storage.len() == self.capacity {
-            self.push_to_influx().await?;
-            self.storage.clear();
-        }
+    //     storage.push(message.0);
 
-        Ok(())
-    }
+    //     if storage.len() == self.capacity {
+    //         self.push_to_influx(message.1).await?;
+    //         storage.clear();
+    //     }
+
+    //     Ok(())
+    // }
 
     /// Pushes the data in a buffer to an InfluxDB bucket.
     ///
     /// # Returns
     /// A Result containing an empty Ok if pushing to InfluxDB was successful, else a DBError.
-    async fn push_to_influx(&self) -> Result<(), DBError> {
+    async fn push_to_influx(&self, buffer: DataType) -> Result<(), DBError> {
         dotenv().ok();
-        let data = self.storage.join("\n");
+        let storage = match buffer {
+            DataType::MI => &self.snapshots,
+            DataType::ST => &self.incrementals,
+        };
+        let data = storage.join("\n");
         let bucket_name = &self.bucket;
 
         let url = format!(
@@ -152,4 +179,9 @@ impl Buffer {
             }
         }
     }
+}
+
+pub enum DataType {
+    MI,
+    ST,
 }

@@ -1,9 +1,10 @@
-use std::time::Duration;
+use std::{result, time::Duration};
 
 use async_trait::async_trait;
 use tokio::{task::{self, JoinHandle}, time::sleep};
 
-use crate::{buffer::Buffer, error::SymbolError, listeners::{binance_listener::{BinanceListener, BinanceSymbolHandler}, listener::{Listener, SymbolHandler, Symbols}}};
+use crate::{buffer::Buffer, data_packet::{self, DataPacket, Snapshot}, error::SymbolError, listeners::{binance_listener::{BinanceListener, BinanceParser, BinanceSymbolHandler}, listener::{Listener, Parser, SymbolHandler, Symbols}}};
+
 
 use super::exchange::{Exchange};
 
@@ -31,15 +32,25 @@ impl BinanceExchange {
                 if let Ok(Symbols::SymbolVector(symbols)) = symbols {
                     for symbol in symbols {
                         let new_symbol = symbol.replace("@depth", "");
-                        let url = format!("{}{}&limit=1000", BINANCE_HTTP, new_symbol.to_uppercase());
-                        println!("{}", url);
+                        let url = format!("{}{}&limit=5", BINANCE_HTTP, new_symbol.to_uppercase());
+                        println!("url: {:?}", url);
                         let response = match reqwest::get(url).await {
                             Ok(res) => res.text().await,
                             Err(err) => return Err(SymbolError::ReqwestError(err)),
                         };
                         if let Ok(response) = response {
                             if !response.contains("code") {
-                                println!("{}", response.as_str());
+                                let result_packet = BinanceParser::parse(response.as_str().into());
+                                if let Ok(data_packet) = result_packet {
+                                    match data_packet {
+                                        DataPacket::ST(mut packet) => {
+                                            packet.symbol_pair = new_symbol;
+                                            // send packet here
+                                            println!("sending packet {:?}", packet);
+                                        }
+                                        _ => {}
+                                    }
+                                }
                             }
                         }
                     }

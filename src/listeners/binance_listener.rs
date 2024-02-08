@@ -1,5 +1,6 @@
 use crate::data_packet::DataPacket;
 use crate::data_packet::MarketIncremental;
+use crate::data_packet::Snapshot;
 use crate::error::ParseError;
 use crate::error::SymbolError;
 use async_trait::async_trait;
@@ -100,6 +101,33 @@ impl Parser for BinanceParser {
                 return Ok(DataPacket::MI(enum_creator));
             }
             Err(ParseError::ParsingError)
+        } else if !message_data.is_null() && message_string.contains("lastUpdateId") {
+            let update_id = message_data["lastUpdateId"].as_i64().ok_or(ParseError::ParsingError)?;
+            let ts = message_data["T"].as_i64().ok_or(ParseError::ParsingError)?;
+
+            let ask_vector = message_data["asks"].as_array().ok_or(ParseError::ParsingError)?;
+            let asks: Vec<Value> = if ask_vector.len() >= 5 {
+                ask_vector[..5].to_vec()
+            } else {
+                ask_vector.to_vec()
+            };
+
+            let bid_vector = message_data["bids"].as_array().ok_or(ParseError::ParsingError)?;
+            let bids: Vec<Value> = if bid_vector.len() >= 5 {
+                bid_vector[..5].to_vec()
+            } else {
+                bid_vector.to_vec()
+            };
+
+            let enum_creator = Snapshot {
+                symbol_pair: "NULL".to_string(),
+                asks,
+                bids,
+                cur_seq: update_id,
+                prev_seq: 0,
+                timestamp: ts,
+            };
+            return Ok(DataPacket::ST(enum_creator));
         } else {
             Err(ParseError::ParsingError)
         }

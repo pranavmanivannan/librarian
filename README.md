@@ -218,7 +218,7 @@ impl Buffer {
     /// A Result with an empty Ok or a DBError if the DataPacket or Buffer couldn't be pushed.
     pub async fn ingest(&mut self, data_packet: DataPacket) -> Result<(), DBError> {}
 
-    /// Pushes the data in a buffer to an InfluxDB bucket.
-    async fn push_to_influx(&self) -> Result<(), DBError> {}
+    /// Pushes the data in a buffer to an InfluxDB bucket. Uses DataType enum to specify which buffer.
+    async fn push_to_influx(&self, buffer: DataType) -> Result<(), DBError> {}
 }
 ```

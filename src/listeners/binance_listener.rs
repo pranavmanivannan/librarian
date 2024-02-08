@@ -102,17 +102,23 @@ impl Parser for BinanceParser {
             }
             Err(ParseError::ParsingError)
         } else if !message_data.is_null() && message_string.contains("lastUpdateId") {
-            let update_id = message_data["lastUpdateId"].as_i64().ok_or(ParseError::ParsingError)?;
+            let update_id = message_data["lastUpdateId"]
+                .as_i64()
+                .ok_or(ParseError::ParsingError)?;
             let ts = message_data["T"].as_i64().ok_or(ParseError::ParsingError)?;
 
-            let ask_vector = message_data["asks"].as_array().ok_or(ParseError::ParsingError)?;
+            let ask_vector = message_data["asks"]
+                .as_array()
+                .ok_or(ParseError::ParsingError)?;
             let asks: Vec<Value> = if ask_vector.len() >= 5 {
                 ask_vector[..5].to_vec()
             } else {
                 ask_vector.to_vec()
             };
 
-            let bid_vector = message_data["bids"].as_array().ok_or(ParseError::ParsingError)?;
+            let bid_vector = message_data["bids"]
+                .as_array()
+                .ok_or(ParseError::ParsingError)?;
             let bids: Vec<Value> = if bid_vector.len() >= 5 {
                 bid_vector[..5].to_vec()
             } else {

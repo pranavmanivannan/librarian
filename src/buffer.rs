@@ -138,7 +138,10 @@ impl Buffer {
             DataType::ST => &self.incrementals,
         };
         let data = storage.join("\n");
-        let bucket_name = &self.bucket;
+        let bucket_name = match buffer {
+            DataType::MI => format!("{}-{}", &self.bucket, "Incremental"),
+            DataType::ST => format!("{}-{}", &self.bucket, "Snapshot"),
+        };
 
         let url = format!(
             "https://us-east-1-1.aws.cloud2.influxdata.com/api/v2/write?org={}&bucket={}",

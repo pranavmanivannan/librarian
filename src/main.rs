@@ -1,5 +1,7 @@
 use exchanges::{
-    binance_exchange::BinanceExchange, bybit_exchange::ByBitExchange, exchange::{Exchange, TaskSet},
+    binance_exchange::BinanceExchange,
+    bybit_exchange::ByBitExchange,
+    exchange::{Exchange, TaskSet},
     huobi_exchange::HuobiExchange,
 };
 use log::LevelFilter;
@@ -39,10 +41,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match exchange {
             TaskSet::Default(listener, buffer) => {
                 let _ = tokio::join!(listener, buffer);
-            },
+            }
             TaskSet::Extended(listener, buffer, additional) => {
                 let _ = tokio::join!(listener, buffer, additional);
-            },
+            }
         }
     }
 

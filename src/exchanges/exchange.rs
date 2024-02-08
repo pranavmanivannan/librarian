@@ -6,19 +6,20 @@ use tokio::task::JoinHandle;
 pub trait Exchange: Sized {
     type Listener: Listener;
 
-    async fn build(
-        exchange_name: &str,
-    ) -> TaskSet {
+    async fn build(exchange_name: &str) -> TaskSet {
         let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
         let listener = Self::Listener::listen(sender).await;
         let buffer = Buffer::create_task(exchange_name, 1000, receiver);
 
-        return TaskSet::Default(listener, buffer)
+        return TaskSet::Default(listener, buffer);
     }
 }
 
-
 pub enum TaskSet {
     Default(JoinHandle<Result<(), tungstenite::Error>>, JoinHandle<()>),
-    Extended(JoinHandle<Result<(), tungstenite::Error>>, JoinHandle<()>, JoinHandle<Result<(), SymbolError>>),
+    Extended(
+        JoinHandle<Result<(), tungstenite::Error>>,
+        JoinHandle<()>,
+        JoinHandle<Result<(), SymbolError>>,
+    ),
 }

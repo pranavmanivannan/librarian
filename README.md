@@ -215,17 +215,8 @@ impl Buffer {
     /// * `data_packet` - A DataPacket received from a listener.
     ///
     /// # Returns
-    /// A Result with an empty Ok or a DBError if the DataPacket couldn't be pushed.
+    /// A Result with an empty Ok or a DBError if the DataPacket or Buffer couldn't be pushed.
     pub async fn ingest(&mut self, data_packet: DataPacket) -> Result<(), DBError> {}
-
-    /// Pushes data from a buffer to an InfluxDB bucket and clears the buffer afterwards.
-    ///
-    /// # Arguments
-    /// * `message` - A string of the datapacket formatted to fit InfluxDB.
-    ///
-    /// # Returns
-    /// A Result that is either empty or a DBError if the message couldn't be pushed to a buffer.
-    pub async fn push_and_flush(&mut self, message: String) -> Result<(), DBError> {}
 
     /// Pushes the data in a buffer to an InfluxDB bucket.
     async fn push_to_influx(&self) -> Result<(), DBError> {}

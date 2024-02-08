@@ -83,7 +83,7 @@ impl Buffer {
                     msg.symbol_pair, asks, bids, msg.cur_seq, msg.prev_seq, msg.timestamp
                 );
                 self.incrementals.push(message);
-                if self.incrementals.len() == self.capacity {
+                if self.incrementals.len() >= self.capacity {
                     self.push_to_influx(DataType::MI).await?;
                     self.incrementals.clear();
                 }
@@ -97,7 +97,7 @@ impl Buffer {
                     msg.symbol_pair, asks, bids, msg.cur_seq, msg.prev_seq, msg.timestamp
                 );
                 self.snapshots.push(message);
-                if self.snapshots.len() == self.capacity {
+                if self.snapshots.len() >= self.capacity {
                     self.push_to_influx(DataType::ST).await?;
                     self.snapshots.clear();
                 }
@@ -105,27 +105,7 @@ impl Buffer {
             }
             DataPacket::Ping(_) => Ok(()),
         }
-
-        // self.push_and_flush(message).await
     }
-    /// Pushes data from a buffer to an InfluxDB bucket and clears the buffer afterwards.
-    ///
-    /// # Arguments
-    /// * `message` - A string of the datapacket formatted to fit InfluxDB.
-    ///
-    /// # Returns
-    /// A Result that is either empty or a DBError if the message couldn't be pushed to a buffer.
-    // pub async fn push_and_flush(&mut self, message: (String, DataType)) -> Result<(), DBError> {
-
-    //     storage.push(message.0);
-
-    //     if storage.len() == self.capacity {
-    //         self.push_to_influx(message.1).await?;
-    //         storage.clear();
-    //     }
-
-    //     Ok(())
-    // }
 
     /// Pushes the data in a buffer to an InfluxDB bucket.
     ///

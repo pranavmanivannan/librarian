@@ -9,7 +9,7 @@ pub trait Exchange: Sized {
     async fn build(exchange_name: &str) -> TaskSet {
         let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
         let listener = Self::Listener::listen(sender).await;
-        let buffer = Buffer::create_task(exchange_name, 1000, receiver);
+        let buffer = Buffer::create_task(exchange_name, 5000, receiver);
 
         return TaskSet::Default(listener, buffer);
     }

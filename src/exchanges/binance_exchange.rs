@@ -1,14 +1,11 @@
-use std::{result, time::Duration};
+use std::time::Duration;
 
 use async_trait::async_trait;
-use tokio::{
-    task::{self, JoinHandle},
-    time::sleep,
-};
+use tokio::{task::JoinHandle, time::sleep};
 
 use crate::{
     buffer::Buffer,
-    data_packet::{self, DataPacket, Snapshot},
+    data_packet::DataPacket,
     error::SymbolError,
     listeners::{
         binance_listener::{BinanceListener, BinanceParser, BinanceSymbolHandler},
@@ -56,14 +53,9 @@ impl BinanceExchange {
                                 if !response.contains("code") {
                                     let result_packet =
                                         BinanceParser::parse(response.as_str().into());
-                                    if let Ok(data_packet) = result_packet {
-                                        match data_packet {
-                                            DataPacket::ST(mut packet) => {
-                                                packet.symbol_pair = new_symbol;
-                                                let _ = sender.send(DataPacket::ST(packet));
-                                            }
-                                            _ => {}
-                                        }
+                                    if let Ok(DataPacket::ST(mut packet)) = result_packet {
+                                        packet.symbol_pair = new_symbol;
+                                        let _ = sender.send(DataPacket::ST(packet));
                                     }
                                 }
                             }

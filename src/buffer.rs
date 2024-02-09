@@ -79,7 +79,7 @@ impl Buffer {
                 let asks = serde_json::to_string(&msg.asks).map_err(DBError::JsonError)?;
                 let bids = serde_json::to_string(&msg.bids).map_err(DBError::JsonError)?;
                 let message = format!(
-                    "{} asks={:?},bids={:?},cur_seq={},prev_seq={}, {}",
+                    "{} asks={:?},bids={:?},cur_seq={},prev_seq={} {}",
                     msg.symbol_pair, asks, bids, msg.cur_seq, msg.prev_seq, msg.timestamp
                 );
                 self.incrementals.push(message);
@@ -93,7 +93,7 @@ impl Buffer {
                 let asks = serde_json::to_string(&msg.asks).map_err(DBError::JsonError)?;
                 let bids = serde_json::to_string(&msg.bids).map_err(DBError::JsonError)?;
                 let message = format!(
-                    "{} asks={:?},bids={:?},cur_seq={},prev_seq={}, {}",
+                    "{} asks={:?},bids={:?},cur_seq={},prev_seq={} {}",
                     msg.symbol_pair, asks, bids, msg.cur_seq, msg.prev_seq, msg.timestamp
                 );
                 self.snapshots.push(message);

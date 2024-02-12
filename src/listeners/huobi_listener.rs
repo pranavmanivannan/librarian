@@ -1,8 +1,8 @@
 use std::io::Read;
 
+use crate::buffer::DataType;
+use crate::data_packet::deserialize_packet;
 use crate::data_packet::DataPacket;
-use crate::data_packet::MarketIncremental;
-use crate::data_packet::Snapshot;
 use crate::error::ParseError;
 use crate::error::SymbolError;
 use async_trait::async_trait;
@@ -73,71 +73,26 @@ impl Parser for HuobiParser {
         let input_data: serde_json::Value =
             serde_json::from_str(&message_string).map_err(ParseError::JsonError)?;
 
-        if !input_data.is_null() {
-            if let Some(ping_key) = input_data.get("ping") {
-                let pong = json!({ "pong": ping_key }).to_string();
-                Ok(DataPacket::Ping(pong))
-            } else if let Some(parsed_data) = &input_data.get("tick") {
-                let data_type = &parsed_data["event"];
+        if input_data.is_null() {
+            return Err(ParseError::ParsingError);
 
-                let symbol_pair = parsed_data["ch"]
-                    .as_str()
-                    .ok_or(ParseError::ParsingError)?
-                    .split('.')
-                    .collect::<Vec<&str>>()
-                    .get(1)
-                    .ok_or(ParseError::ParsingError)?
-                    .to_uppercase();
+        } else if let Some(ping_key) = input_data.get("ping") {
+            // handles pings
+            let pong = json!({ "pong": ping_key }).to_string();
+            Ok(DataPacket::Ping(pong))
 
-                let cur_seq = parsed_data["version"]
-                    .as_i64()
-                    .ok_or(ParseError::ParsingError)?;
-                let ts = parsed_data["ts"].as_i64().ok_or(ParseError::ParsingError)?;
+        } else if let Some(parsed_data) = &input_data.get("tick") {
+            // finds datatype
+            let data_type = parsed_data["event"].as_str().ok_or(ParseError::ParsingError)?;
+            let dtype = match data_type {
+                "update" => DataType::MI,
+                _ => DataType::ST,
+            };
 
-                let ask_vector = parsed_data["asks"]
-                    .as_array()
-                    .ok_or(ParseError::ParsingError)?;
-                let asks: Vec<Value> = if ask_vector.len() >= 5 {
-                    ask_vector[..5].to_vec()
-                } else {
-                    ask_vector.to_vec()
-                };
+            // deserialize
+            let fields = ["ch", "asks", "bids", "version", "NULL", "ts"];
+            return deserialize_packet(parsed_data, &fields, dtype);
 
-                let bid_vector = parsed_data["bids"]
-                    .as_array()
-                    .ok_or(ParseError::ParsingError)?;
-                let bids: Vec<Value> = if bid_vector.len() >= 5 {
-                    bid_vector[..5].to_vec()
-                } else {
-                    bid_vector.to_vec()
-                };
-
-                if data_type == "update" {
-                    let enum_creator = MarketIncremental {
-                        symbol_pair,
-                        asks,
-                        bids,
-                        cur_seq,
-                        prev_seq: 0,
-                        timestamp: ts,
-                    };
-
-                    Ok(DataPacket::MI(enum_creator))
-                } else {
-                    let enum_creator = Snapshot {
-                        symbol_pair,
-                        asks,
-                        bids,
-                        cur_seq,
-                        prev_seq: 0,
-                        timestamp: ts,
-                    };
-
-                    Ok(DataPacket::ST(enum_creator))
-                }
-            } else {
-                Err(ParseError::ParsingError)
-            }
         } else {
             Err(ParseError::ParsingError)
         }

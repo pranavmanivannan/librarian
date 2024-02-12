@@ -1,5 +1,6 @@
 use serde::Serialize;
 use serde_json::Value;
+use crate::{buffer::DataType, error::ParseError};
 
 /// The DataPacket Enum contains various structs. This allows for the `Parser` trait to parse a `Message` from any
 /// endpoint and return a singular data type that can be sent over a `channel`.
@@ -49,3 +50,88 @@ pub struct Snapshot {
 
 // snapshot and mi are copy pasted structs, but this is better than using a flag
 // in case we add stuff like BBO and TD
+
+
+// Custom deserializer
+// fields: symbol pair, asks, bids, seq, prev_seq, timestamp
+// use square bracket notation here because caller verifies structure of json_data
+pub fn deserialize_packet(json_data: &Value, fields: &[&str], data_type: DataType) -> Result<DataPacket, ParseError> {
+
+    // field[0]: symbol pair
+    let symbol_pair = match fields[0] {
+        "NULL" => "NULL".to_string(),
+        _ => json_data[fields[0]]
+            .as_str()
+            .ok_or(ParseError::ParsingError)?
+            .to_uppercase(),
+    };
+
+    // field[1]: asks
+    let ask_vector = json_data[fields[1]]
+        .as_array()
+        .ok_or(ParseError::ParsingError)?;
+    let asks: Vec<Value> = if ask_vector.len() >= 5 {
+        ask_vector[..5].to_vec()
+    } else {
+        ask_vector.to_vec()
+    };
+
+    // field[2]: bids
+    let bid_vector = json_data[fields[2]]
+        .as_array()
+        .ok_or(ParseError::ParsingError)?;
+    let bids: Vec<Value> = if bid_vector.len() >= 5 {
+        bid_vector[..5].to_vec()
+    } else {
+        bid_vector.to_vec()
+    };
+
+    // field[3]: curseq
+    let cur_seq = json_data[fields[3]]
+        .as_i64()
+        .ok_or(ParseError::ParsingError)?;
+
+    // field[4]: prevseq
+    let prev_seq = match fields[4] {
+        "NULL" => 0,
+        _ => json_data[fields[4]]
+            .as_i64()
+            .ok_or(ParseError::ParsingError)?,
+    };
+
+    // field[5]: timestamp
+    let timestamp = match fields[5] {
+        "NULL" => 0,
+        _ => json_data[fields[5]]
+            .as_i64()
+            .ok_or(ParseError::ParsingError)?,
+    };
+
+    // Datapacket creation
+    match data_type {
+        DataType::MI => {
+            let enum_creator = MarketIncremental {
+                symbol_pair,
+                asks,
+                bids,
+                cur_seq,
+                prev_seq,
+                timestamp,
+            };
+
+            return Ok(DataPacket::MI(enum_creator))
+        },
+        DataType::ST =>{
+                let enum_creator = Snapshot {
+                symbol_pair,
+                asks,
+                bids,
+                cur_seq,
+                prev_seq,
+                timestamp,
+            };
+
+            return Ok(DataPacket::ST(enum_creator))
+        },
+    }
+}

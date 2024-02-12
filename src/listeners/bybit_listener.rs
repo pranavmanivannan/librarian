@@ -1,6 +1,7 @@
+use crate::buffer::DataType;
+use crate::data_packet;
+use crate::data_packet::deserialize_packet;
 use crate::data_packet::DataPacket;
-use crate::data_packet::MarketIncremental;
-use crate::data_packet::Snapshot;
 use crate::error::ParseError;
 use crate::error::SymbolError;
 use async_trait::async_trait;
@@ -57,65 +58,36 @@ impl Parser for ByBitParser {
         let input_data: serde_json::Value =
             serde_json::from_str(&message_string).map_err(ParseError::JsonError)?;
 
-        if !input_data.is_null()
-            && (input_data["type"] == "snapshot" || input_data["type"] == "delta")
-        {
-            let parsed_data = &input_data["data"];
-            let data_type = &input_data["type"];
+        if input_data.is_null() {
+            return Err(ParseError::ParsingError);
 
-            let symb_pair = parsed_data["s"]
-                .as_str()
-                .ok_or(ParseError::ParsingError)?
-                .to_uppercase();
-
-            let seq_num = parsed_data["u"].as_i64().ok_or(ParseError::ParsingError)?;
-            let ts = input_data["ts"].as_i64().ok_or(ParseError::ParsingError)?;
-
-            let ask_vector = parsed_data["a"]
-                .as_array()
-                .ok_or(ParseError::ParsingError)?;
-            let asks: Vec<Value> = if ask_vector.len() >= 5 {
-                ask_vector[..5].to_vec()
-            } else {
-                ask_vector.to_vec()
+        } else if let Some(parsed_data) = &input_data.get("data") {
+            // data type in input data instead of parsed data
+            let data_type = input_data["type"].as_str().ok_or(ParseError::ParsingError)?;
+            let dtype = match data_type {
+                "snapshot" => DataType::ST,
+                "delta" => DataType::MI,
+                _ => Err(ParseError::ParsingError)?,
             };
 
-            let bid_vector = parsed_data["b"]
-                .as_array()
-                .ok_or(ParseError::ParsingError)?;
-            let bids: Vec<Value> = if bid_vector.len() >= 5 {
-                bid_vector[..5].to_vec()
-            } else {
-                bid_vector.to_vec()
-            };
+            // deserialize
+            let fields = ["s", "a", "b", "u", "NULL", "NULL"];
+            let result_packet = deserialize_packet(parsed_data, &fields, dtype);
 
-            if data_type == "delta" {
-                let enum_creator = MarketIncremental {
-                    symbol_pair: symb_pair,
-                    asks,
-                    bids,
-                    cur_seq: seq_num,
-                    prev_seq: 0,
-                    timestamp: ts,
-                };
-
-                Ok(DataPacket::MI(enum_creator))
-            } else if data_type == "snapshot" {
-                let enum_creator = Snapshot {
-                    symbol_pair: symb_pair,
-                    asks,
-                    bids,
-                    cur_seq: seq_num,
-                    prev_seq: 0,
-                    timestamp: ts,
-                };
-
-                Ok(DataPacket::ST(enum_creator))
-            } else {
-                Err(ParseError::ParsingError)
+            // timestamp is in input data instead of json data, so it needs to be overwritten
+            match result_packet {
+                Ok(DataPacket::ST(mut packet)) => {
+                    packet.timestamp = input_data["ts"].as_i64().ok_or(ParseError::ParsingError)?;
+                    return Ok(data_packet::DataPacket::ST(packet));
+                }
+                Ok(DataPacket::MI(mut packet)) => {
+                    packet.timestamp = input_data["ts"].as_i64().ok_or(ParseError::ParsingError)?;
+                    return Ok(data_packet::DataPacket::MI(packet));
+                }
+                _ => return Err(ParseError::ParsingError),
             }
         } else {
-            Err(ParseError::ParsingError)
+            return Err(ParseError::ParsingError);
         }
     }
 }

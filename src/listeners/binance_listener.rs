@@ -1,6 +1,6 @@
+use crate::buffer::DataType;
+use crate::data_packet::deserialize_packet;
 use crate::data_packet::DataPacket;
-use crate::data_packet::MarketIncremental;
-use crate::data_packet::Snapshot;
 use crate::error::ParseError;
 use crate::error::SymbolError;
 use async_trait::async_trait;
@@ -62,80 +62,21 @@ impl Parser for BinanceParser {
         let message_data: serde_json::Value =
             serde_json::from_str(&message_string).map_err(ParseError::JsonError)?;
 
-        if !message_data.is_null() && (message_data["data"]["e"] == "depthUpdate") {
-            let input_data = &message_data["data"];
-            let data_type = input_data["e"].as_str().ok_or(ParseError::ParsingError)?;
-            let symb_pair = input_data["s"]
-                .as_str()
-                .ok_or(ParseError::ParsingError)?
-                .to_uppercase();
+        if message_data.is_null() {
+            return Err(ParseError::ParsingError);
 
-            let seq_num = input_data["u"].as_i64().ok_or(ParseError::ParsingError)?;
-            let prev_seq_num = input_data["pu"].as_i64().ok_or(ParseError::ParsingError)?;
-            let ts = input_data["T"].as_i64().ok_or(ParseError::ParsingError)?;
+        } else if message_string.contains("lastUpdateId") {
+            // ST case
+            let fields = ["NULL", "asks", "bids", "lastUpdateId", "NULL", "T"];
+            return deserialize_packet(&message_data, &fields, DataType::ST);
 
-            let ask_vector = input_data["a"].as_array().ok_or(ParseError::ParsingError)?;
-            let asks: Vec<Value> = if ask_vector.len() >= 5 {
-                ask_vector[..5].to_vec()
-            } else {
-                ask_vector.to_vec()
-            };
+        } else if let Some(parsed_data) = &message_data.get("data") {
+            // MI case
+            let fields = ["s", "a", "b", "u", "pu", "T"];
+            return deserialize_packet(parsed_data, &fields, DataType::MI);
 
-            let bid_vector = input_data["b"].as_array().ok_or(ParseError::ParsingError)?;
-            let bids: Vec<Value> = if bid_vector.len() >= 5 {
-                bid_vector[..5].to_vec()
-            } else {
-                bid_vector.to_vec()
-            };
-
-            if data_type == "depthUpdate" {
-                let enum_creator = MarketIncremental {
-                    symbol_pair: symb_pair,
-                    asks,
-                    bids,
-                    cur_seq: seq_num,
-                    prev_seq: prev_seq_num,
-                    timestamp: ts,
-                };
-
-                return Ok(DataPacket::MI(enum_creator));
-            }
-            Err(ParseError::ParsingError)
-        } else if !message_data.is_null() && message_string.contains("lastUpdateId") {
-            let update_id = message_data["lastUpdateId"]
-                .as_i64()
-                .ok_or(ParseError::ParsingError)?;
-            let ts = message_data["T"].as_i64().ok_or(ParseError::ParsingError)?;
-
-            let ask_vector = message_data["asks"]
-                .as_array()
-                .ok_or(ParseError::ParsingError)?;
-            let asks: Vec<Value> = if ask_vector.len() >= 5 {
-                ask_vector[..5].to_vec()
-            } else {
-                ask_vector.to_vec()
-            };
-
-            let bid_vector = message_data["bids"]
-                .as_array()
-                .ok_or(ParseError::ParsingError)?;
-            let bids: Vec<Value> = if bid_vector.len() >= 5 {
-                bid_vector[..5].to_vec()
-            } else {
-                bid_vector.to_vec()
-            };
-
-            let enum_creator = Snapshot {
-                symbol_pair: "NULL".to_string(),
-                asks,
-                bids,
-                cur_seq: update_id,
-                prev_seq: 0,
-                timestamp: ts,
-            };
-            return Ok(DataPacket::ST(enum_creator));
         } else {
-            Err(ParseError::ParsingError)
+            return Err(ParseError::ParsingError);
         }
     }
 }

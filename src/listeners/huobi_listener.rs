@@ -1,8 +1,7 @@
 use std::io::Read;
-
-use crate::buffer::DataType;
-use crate::data_packet::deserialize_packet;
 use crate::data_packet::DataPacket;
+use crate::data_packet::MarketIncremental;
+use crate::data_packet::Snapshot;
 use crate::error::ParseError;
 use crate::error::SymbolError;
 use async_trait::async_trait;
@@ -19,6 +18,7 @@ use tokio_tungstenite::WebSocketStream;
 use tungstenite::Error;
 use tungstenite::Message;
 
+use super::listener::parse_bids_asks;
 use super::listener::Symbols;
 use super::listener::{Listener, Parser, SymbolHandler};
 
@@ -86,17 +86,42 @@ impl Parser for HuobiParser {
             Ok(DataPacket::Ping(pong))
 
         } else if let Some(parsed_data) = &input_data.get("tick") {
-            // finds datatype
             let data_type = parsed_data["event"].as_str().ok_or(ParseError::ParsingError)?;
-            let dtype = match data_type {
-                "update" => DataType::MI,
-                _ => DataType::ST,
-            };
 
-            // deserialize
-            let fields = ["ch", "asks", "bids", "version", "NULL", "ts"];
-            return deserialize_packet(parsed_data, &fields, dtype);
+            let symbol_pair = parsed_data["ch"].as_str().ok_or(ParseError::ParsingError)?.to_uppercase();
+            let asks = parse_bids_asks(parsed_data["asks"].as_array().ok_or(ParseError::ParsingError)?);
+            let bids = parse_bids_asks(parsed_data["bids"].as_array().ok_or(ParseError::ParsingError)?);
+            let cur_seq = parsed_data["version"].as_i64().ok_or(ParseError::ParsingError)?;
+            let prev_seq = 0;
+            let timestamp = parsed_data["ts"].as_i64().ok_or(ParseError::ParsingError)?;
 
+            // Datapacket creation
+            match data_type {
+                "update" => {
+                    let enum_creator = MarketIncremental {
+                        symbol_pair,
+                        asks,
+                        bids,
+                        cur_seq,
+                        prev_seq,
+                        timestamp,
+                    };
+
+                    return Ok(DataPacket::MI(enum_creator))
+                },
+                _ =>{
+                        let enum_creator = Snapshot {
+                        symbol_pair,
+                        asks,
+                        bids,
+                        cur_seq,
+                        prev_seq,
+                        timestamp,
+                    };
+
+                    return Ok(DataPacket::ST(enum_creator))
+                }
+            }
         } else {
             Err(ParseError::ParsingError)
         }

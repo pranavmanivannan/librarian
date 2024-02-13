@@ -1,7 +1,6 @@
-use crate::buffer::DataType;
-use crate::data_packet;
-use crate::data_packet::deserialize_packet;
 use crate::data_packet::DataPacket;
+use crate::data_packet::MarketIncremental;
+use crate::data_packet::Snapshot;
 use crate::error::ParseError;
 use crate::error::SymbolError;
 use async_trait::async_trait;
@@ -17,6 +16,7 @@ use tokio_tungstenite::WebSocketStream;
 use tungstenite::Error;
 use tungstenite::Message;
 
+use super::listener::parse_bids_asks;
 use super::listener::Symbols;
 use super::listener::{Listener, Parser, SymbolHandler};
 
@@ -64,31 +64,43 @@ impl Parser for ByBitParser {
 
         if input_data.is_null() {
             return Err(ParseError::ParsingError);
-
         } else if let Some(parsed_data) = &input_data.get("data") {
-            // data type in input data instead of parsed data
             let data_type = input_data["type"].as_str().ok_or(ParseError::ParsingError)?;
-            let dtype = match data_type {
-                "snapshot" => DataType::ST,
-                "delta" => DataType::MI,
+
+            let symbol_pair = parsed_data["s"].as_str().ok_or(ParseError::ParsingError)?.to_uppercase();
+            let asks = parse_bids_asks(parsed_data["a"].as_array().ok_or(ParseError::ParsingError)?);
+            let bids = parse_bids_asks(parsed_data["b"].as_array().ok_or(ParseError::ParsingError)?);
+            let cur_seq = parsed_data["u"].as_i64().ok_or(ParseError::ParsingError)?;
+            let prev_seq = 0;
+            let timestamp = input_data["ts"].as_i64().ok_or(ParseError::ParsingError)?;
+
+            // Datapacket creation
+            match data_type {
+                "delta" => {
+                    let enum_creator = MarketIncremental {
+                        symbol_pair,
+                        asks,
+                        bids,
+                        cur_seq,
+                        prev_seq,
+                        timestamp,
+                    };
+
+                    return Ok(DataPacket::MI(enum_creator))
+                },
+                "snapshot" =>{
+                        let enum_creator = Snapshot {
+                        symbol_pair,
+                        asks,
+                        bids,
+                        cur_seq,
+                        prev_seq,
+                        timestamp,
+                    };
+
+                    return Ok(DataPacket::ST(enum_creator))
+                },
                 _ => Err(ParseError::ParsingError)?,
-            };
-
-            // deserialize
-            let fields = ["s", "a", "b", "u", "NULL", "NULL"];
-            let result_packet = deserialize_packet(parsed_data, &fields, dtype);
-
-            // timestamp is in input data instead of json data, so it needs to be overwritten
-            match result_packet {
-                Ok(DataPacket::ST(mut packet)) => {
-                    packet.timestamp = input_data["ts"].as_i64().ok_or(ParseError::ParsingError)?;
-                    return Ok(data_packet::DataPacket::ST(packet));
-                }
-                Ok(DataPacket::MI(mut packet)) => {
-                    packet.timestamp = input_data["ts"].as_i64().ok_or(ParseError::ParsingError)?;
-                    return Ok(data_packet::DataPacket::MI(packet));
-                }
-                _ => return Err(ParseError::ParsingError),
             }
         } else {
             return Err(ParseError::ParsingError);

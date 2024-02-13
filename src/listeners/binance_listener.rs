@@ -1,6 +1,6 @@
-use crate::buffer::DataType;
-use crate::data_packet::deserialize_packet;
 use crate::data_packet::DataPacket;
+use crate::data_packet::MarketIncremental;
+use crate::data_packet::Snapshot;
 use crate::error::ParseError;
 use crate::error::SymbolError;
 use async_trait::async_trait;
@@ -17,6 +17,7 @@ use tokio_tungstenite::WebSocketStream;
 use tungstenite::Error;
 use tungstenite::Message;
 
+use super::listener::parse_bids_asks;
 use super::listener::Symbols;
 use super::listener::{Listener, Parser, SymbolHandler};
 
@@ -66,15 +67,44 @@ impl Parser for BinanceParser {
             return Err(ParseError::ParsingError);
 
         } else if message_string.contains("lastUpdateId") {
-            // ST case
-            let fields = ["NULL", "asks", "bids", "lastUpdateId", "NULL", "T"];
-            return deserialize_packet(&message_data, &fields, DataType::ST);
+            // Snapshot case
+            let symbol_pair = "NULL".to_string();
+            let asks = parse_bids_asks(message_data["asks"].as_array().ok_or(ParseError::ParsingError)?);
+            let bids = parse_bids_asks(message_data["bids"].as_array().ok_or(ParseError::ParsingError)?);
+            let cur_seq = message_data["lastUpdateId"].as_i64().ok_or(ParseError::ParsingError)?;
+            let prev_seq = 0;
+            let timestamp = message_data["T"].as_i64().ok_or(ParseError::ParsingError)?;
+            
+            let enum_creator = Snapshot {
+                symbol_pair,
+                asks,
+                bids,
+                cur_seq,
+                prev_seq,
+                timestamp,
+            };
+            
+            return Ok(DataPacket::ST(enum_creator))
 
         } else if let Some(parsed_data) = &message_data.get("data") {
-            // MI case
-            let fields = ["s", "a", "b", "u", "pu", "T"];
-            return deserialize_packet(parsed_data, &fields, DataType::MI);
+            // Market incremental case
+            let symbol_pair = parsed_data["s"].as_str().ok_or(ParseError::ParsingError)?.to_uppercase();
+            let asks = parse_bids_asks(parsed_data["a"].as_array().ok_or(ParseError::ParsingError)?);
+            let bids = parse_bids_asks(parsed_data["b"].as_array().ok_or(ParseError::ParsingError)?);
+            let cur_seq = parsed_data["u"].as_i64().ok_or(ParseError::ParsingError)?;
+            let prev_seq = parsed_data["pu"].as_i64().ok_or(ParseError::ParsingError)?;
+            let timestamp = parsed_data["T"].as_i64().ok_or(ParseError::ParsingError)?;
+            
+            let enum_creator = MarketIncremental {
+                symbol_pair,
+                asks,
+                bids,
+                cur_seq,
+                prev_seq,
+                timestamp,
+            };
 
+            return Ok(DataPacket::MI(enum_creator))
         } else {
             return Err(ParseError::ParsingError);
         }

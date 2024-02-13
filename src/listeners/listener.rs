@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::SinkExt;
 use futures_util::StreamExt;
+use serde_json::Value;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task::JoinHandle;
@@ -102,4 +103,13 @@ pub trait SymbolHandler {
 pub enum Symbols {
     SymbolVector(Vec<String>),
     SymbolString(String),
+}
+
+pub fn parse_bids_asks(data_vector: &Vec<Value>) -> Vec<Value> {
+    let data: Vec<Value> = if data_vector.len() >= 5 {
+        data_vector[..5].to_vec()
+    } else {
+        data_vector.to_vec()
+    };
+    data
 }

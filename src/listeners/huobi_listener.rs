@@ -50,8 +50,12 @@ impl Listener for HuobiListener {
             for symbol in symbols {
                 let _ = write.send(Message::Text(symbol.to_string())).await;
             }
+            return Ok((write, read));
         }
-        return Ok((write, read));
+        return Err(Error::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Symbol Error",
+        )));
     }
 }
 

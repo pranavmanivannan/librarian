@@ -47,8 +47,12 @@ impl Listener for ByBitListener {
         let symbols = Self::SymbolHandler::get_symbols().await;
         if let Ok(Symbols::SymbolString(symbols)) = symbols {
             let _ = write.send(Message::Text(symbols)).await;
+            return Ok((write, read));
         }
-        return Ok((write, read));
+        return Err(Error::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Symbol Error",
+        )));
     }
 }
 

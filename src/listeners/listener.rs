@@ -31,7 +31,11 @@ pub trait Listener: Send + Sync {
         let sender_clone = sender.clone();
         tokio::spawn(async move {
             loop {
-                let (mut write, mut read) = Self::connect().await?;
+                //println!("connecting...");
+                let (mut write, mut read) = match Self::connect().await {
+                    Ok(stream_tuple) => stream_tuple,
+                    Err(_e) => continue,
+                };
                 while let Some(Ok(message)) = read.next().await {
                     if let Message::Close(_) = message {
                         break;

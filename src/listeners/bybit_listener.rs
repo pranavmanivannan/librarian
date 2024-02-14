@@ -64,13 +64,19 @@ impl Listener for ByBitListener {
 
 impl Parser for ByBitParser {
     /// Parses a tungstenite Message from the ByBit websocket for data.
+    ///
+    /// # Arguments
+    /// * `message` - A message of the `Message` type
+    ///
+    /// # Returns
+    /// A Result containing a `DataPacket` if parsing was successful, else a `ParseError`.
     fn parse(message: Message) -> Result<DataPacket, ParseError> {
         let message_string = message.to_string();
         let input_data: serde_json::Value =
             serde_json::from_str(&message_string).map_err(ParseError::JsonError)?;
 
         if input_data.is_null() {
-            return Err(ParseError::ParsingError);
+            Err(ParseError::ParsingError)
         } else if let Some(parsed_data) = &input_data.get("data") {
             let data_type = input_data["type"]
                 .as_str()

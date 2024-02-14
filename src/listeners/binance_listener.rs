@@ -67,13 +67,19 @@ impl Listener for BinanceListener {
 
 impl Parser for BinanceParser {
     /// Parses a tungstenite Message from the Binance websocket for data.
+    ///
+    /// # Arguments
+    /// * `message` - A message of the `Message` type
+    ///
+    /// # Returns
+    /// A Result containing a `DataPacket` if parsing was successful, else a `ParseError`.
     fn parse(message: Message) -> Result<DataPacket, ParseError> {
         let message_string = message.to_string();
         let message_data: serde_json::Value =
             serde_json::from_str(&message_string).map_err(ParseError::JsonError)?;
 
         if message_data.is_null() {
-            return Err(ParseError::ParsingError);
+            Err(ParseError::ParsingError)
         } else if message_string.contains("lastUpdateId") {
             // Snapshot case
             let symbol_pair = "NULL".to_string();

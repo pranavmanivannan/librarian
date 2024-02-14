@@ -10,6 +10,15 @@ pub trait Exchange: Sized {
     type Listener: Listener;
 
     /// This function creates a `TaskSet` which contains the `JoinHandle` for both the listener and buffer per exchange.
+    ///
+    /// # Arguments
+    /// * `exchange_name` - A string slice that holds the name of the exchange. This is used when creating the buffer
+    /// and should refer to the first half of the bucket name on InfluxDB. For example, "ByBit" or "Binance" would be
+    /// appropriate exchange names which correspond to the InfluxDB bucket names "ByBit-Incremental" and
+    /// "Binance-Snapshot".
+    ///
+    /// # Returns
+    /// A `TaskSet` enum which holds multiple `JoinHandle` tuples.
     async fn build(exchange_name: &str) -> TaskSet {
         let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
         let listener = Self::Listener::listen(sender).await;

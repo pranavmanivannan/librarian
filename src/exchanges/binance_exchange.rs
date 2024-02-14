@@ -23,9 +23,16 @@ pub struct BinanceExchange {}
 impl Exchange for BinanceExchange {
     type Listener = BinanceListener;
 
-    /// An overriden `build` function that returns a `TaskSet` containing a `JoinHandle` for the listener, buffer, and
-    /// an additional `JoinHandle` for the HTTP listener. The HTTP listener is used to retrieve orderbook snapshots as
-    /// Binance does not send them through the websocket stream.
+    /// An overriden `build` function that returns a `TaskSet` of the `Extended` variant.
+    ///
+    /// # Arguments
+    /// * `exchange_name` - A string slice that holds the name of the exchange. This is used when creating the buffer
+    /// and should refer to the first half of the bucket name on InfluxDB.
+    ///
+    /// # Returns
+    /// A `TaskSet` containing a `JoinHandle` for the listener, buffer, and an additional `JoinHandle` for the HTTP
+    /// listener. The HTTP listener is used to retrieve orderbook snapshots as Binance does not send them through the
+    /// websocket stream.
     async fn build(exchange_name: &str) -> TaskSet {
         let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
         let listener = BinanceListener::listen(sender.clone()).await;

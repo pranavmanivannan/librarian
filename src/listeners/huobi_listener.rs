@@ -92,7 +92,7 @@ impl Parser for HuobiParser {
             serde_json::from_str(&message_string).map_err(ParseError::JsonError)?;
 
         if input_data.is_null() {
-            return Err(ParseError::ParsingError);
+            Err(ParseError::ParsingError)
         } else if let Some(ping_key) = input_data.get("ping") {
             // handles pings
             let pong = json!({ "pong": ping_key }).to_string();

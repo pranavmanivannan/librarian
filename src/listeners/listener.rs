@@ -32,7 +32,6 @@ pub trait Listener: Send + Sync {
         let sender_clone = sender.clone();
         tokio::spawn(async move {
             loop {
-                //println!("connecting...");
                 let (mut write, mut read) = match Self::connect().await {
                     Ok(stream_tuple) => stream_tuple,
                     Err(_e) => continue,
@@ -46,7 +45,7 @@ pub trait Listener: Send + Sync {
                             match data_packet {
                                 DataPacket::Ping(pong) => {
                                     let _ = write.send(Message::Text(pong)).await;
-                                    // println!("Pong sent");
+                                    log::info!("Pong sent");
                                 }
                                 _ => {
                                     let _ = sender_clone.send(data_packet);
@@ -100,11 +99,23 @@ pub trait SymbolHandler {
     ) -> impl std::future::Future<Output = Result<Symbols, SymbolError>> + std::marker::Send;
 }
 
+/// The `Symbols` enum is used when returning the result of the `get_symbols` function. This allows for extensibility
+/// when adding additional exchanges, as they may require different symbol formats to be sent when subscribing to all
+/// symbols.
 pub enum Symbols {
     SymbolVector(Vec<String>),
     SymbolString(String),
 }
 
+/// Parses the first 5 bids and asks from an array inside the JSON message the exchange sends. This array is
+/// converted to a Vector of `Value` types before being input into this function.
+///
+/// # Arguments
+/// * `data_vector` - A reference to a `Vec<Value>` which is a variable-length vector. Market incremental data
+/// may contain less than 5 bids or asks, but snapshot data will contain at least 5 per both bids and asks.
+///
+/// # Returns
+/// A `Vec<Value>` containing the first 5 bids or asks.
 pub fn parse_bids_asks(data_vector: &Vec<Value>) -> Vec<Value> {
     let data: Vec<Value> = if data_vector.len() >= 5 {
         data_vector[..5].to_vec()

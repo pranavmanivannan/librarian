@@ -33,6 +33,14 @@ impl Listener for BinanceListener {
     type Parser = BinanceParser;
     type SymbolHandler = BinanceSymbolHandler;
 
+    /// This function connects to the Binance websocket. Unlike separately sending a message to subscribe to each symbol
+    /// and channel endpoint, Binance subscribes to all symbols by inputting the symbols and depth of the orderbook for
+    /// each symbol in the URL. However, it does not receive orderbook snapshots through a websocket stream. That is
+    /// done separately through a REST API.
+    ///
+    /// # Returns
+    /// A Result containing the write and read halves of the websocket stream if the connection was successful. Else, it
+    /// will return an Error.
     async fn connect() -> Result<
         (
             SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
@@ -51,13 +59,14 @@ impl Listener for BinanceListener {
         } else {
             return Err(TungsteniteError::Io(std::io::Error::new(
                 std::io::ErrorKind::Other,
-                "Symbol Error",
+                "Connection error. Binance symbol retrieval failed.",
             )));
         }
     }
 }
 
 impl Parser for BinanceParser {
+    /// Parses a tungstenite Message from the Binance websocket for data.
     fn parse(message: Message) -> Result<DataPacket, ParseError> {
         let message_string = message.to_string();
         let message_data: serde_json::Value =
@@ -65,16 +74,25 @@ impl Parser for BinanceParser {
 
         if message_data.is_null() {
             return Err(ParseError::ParsingError);
-
         } else if message_string.contains("lastUpdateId") {
             // Snapshot case
             let symbol_pair = "NULL".to_string();
-            let asks = parse_bids_asks(message_data["asks"].as_array().ok_or(ParseError::ParsingError)?);
-            let bids = parse_bids_asks(message_data["bids"].as_array().ok_or(ParseError::ParsingError)?);
-            let cur_seq = message_data["lastUpdateId"].as_i64().ok_or(ParseError::ParsingError)?;
+            let asks = parse_bids_asks(
+                message_data["asks"]
+                    .as_array()
+                    .ok_or(ParseError::ParsingError)?,
+            );
+            let bids = parse_bids_asks(
+                message_data["bids"]
+                    .as_array()
+                    .ok_or(ParseError::ParsingError)?,
+            );
+            let cur_seq = message_data["lastUpdateId"]
+                .as_i64()
+                .ok_or(ParseError::ParsingError)?;
             let prev_seq = 0;
             let timestamp = message_data["T"].as_i64().ok_or(ParseError::ParsingError)?;
-            
+
             let enum_creator = Snapshot {
                 symbol_pair,
                 asks,
@@ -83,18 +101,28 @@ impl Parser for BinanceParser {
                 prev_seq,
                 timestamp,
             };
-            
-            return Ok(DataPacket::ST(enum_creator))
 
+            return Ok(DataPacket::ST(enum_creator));
         } else if let Some(parsed_data) = &message_data.get("data") {
             // Market incremental case
-            let symbol_pair = parsed_data["s"].as_str().ok_or(ParseError::ParsingError)?.to_uppercase();
-            let asks = parse_bids_asks(parsed_data["a"].as_array().ok_or(ParseError::ParsingError)?);
-            let bids = parse_bids_asks(parsed_data["b"].as_array().ok_or(ParseError::ParsingError)?);
+            let symbol_pair = parsed_data["s"]
+                .as_str()
+                .ok_or(ParseError::ParsingError)?
+                .to_uppercase();
+            let asks = parse_bids_asks(
+                parsed_data["a"]
+                    .as_array()
+                    .ok_or(ParseError::ParsingError)?,
+            );
+            let bids = parse_bids_asks(
+                parsed_data["b"]
+                    .as_array()
+                    .ok_or(ParseError::ParsingError)?,
+            );
             let cur_seq = parsed_data["u"].as_i64().ok_or(ParseError::ParsingError)?;
             let prev_seq = parsed_data["pu"].as_i64().ok_or(ParseError::ParsingError)?;
             let timestamp = parsed_data["T"].as_i64().ok_or(ParseError::ParsingError)?;
-            
+
             let enum_creator = MarketIncremental {
                 symbol_pair,
                 asks,
@@ -104,7 +132,7 @@ impl Parser for BinanceParser {
                 timestamp,
             };
 
-            return Ok(DataPacket::MI(enum_creator))
+            return Ok(DataPacket::MI(enum_creator));
         } else {
             return Err(ParseError::ParsingError);
         }
@@ -112,6 +140,13 @@ impl Parser for BinanceParser {
 }
 
 impl SymbolHandler for BinanceSymbolHandler {
+    /// Requests all tradeable symbols from the Binance http endpoint and parses the response. It then creates a vector
+    /// of formated strings. The vector that is returned is then converted into a single string and used when
+    /// connecting to the Binance websocket to subscribe to all symbols.
+    ///
+    /// # Returns
+    /// A result containing a `Value` if the response is valid and contains the necessary symbol data. If the response
+    /// or parsing is unsuccessful, it will return a `SymbolError`.
     async fn get_symbols() -> Result<Symbols, SymbolError> {
         let response = match reqwest::get(BINANCE_SYMBOL_API).await {
             Ok(res) => res,

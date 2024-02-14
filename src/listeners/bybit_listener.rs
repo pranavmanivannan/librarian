@@ -26,7 +26,6 @@ const BYBIT_WS: &str = "wss://stream.bybit.com/v5/public/linear";
 const BYBIT_SYMBOL_API: &str = "https://api-testnet.bybit.com/v5/market/tickers?category=linear";
 
 pub struct ByBitListener {}
-
 pub struct ByBitParser {}
 pub struct ByBitSymbolHandler {}
 
@@ -35,6 +34,13 @@ impl Listener for ByBitListener {
     type Parser = ByBitParser;
     type SymbolHandler = ByBitSymbolHandler;
 
+    /// This function connects to the ByBit websocket and sends all symbols to the websocket through a JSON subscription
+    /// message. There is no need to subscribe to both market incremental and snapshot data as ByBit sends both types of
+    /// data through the same channel for each symbol.
+    ///
+    /// # Returns
+    /// A Result containing the write and read halves of the websocket stream if the connection was successful. Else, it
+    /// will return an Error.
     async fn connect() -> Result<
         (
             SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
@@ -51,12 +57,13 @@ impl Listener for ByBitListener {
         }
         return Err(Error::Io(std::io::Error::new(
             std::io::ErrorKind::Other,
-            "Symbol Error",
+            "Connection error. ByBit symbol retrieval failed.",
         )));
     }
 }
 
 impl Parser for ByBitParser {
+    /// Parses a tungstenite Message from the ByBit websocket for data.
     fn parse(message: Message) -> Result<DataPacket, ParseError> {
         let message_string = message.to_string();
         let input_data: serde_json::Value =
@@ -65,11 +72,24 @@ impl Parser for ByBitParser {
         if input_data.is_null() {
             return Err(ParseError::ParsingError);
         } else if let Some(parsed_data) = &input_data.get("data") {
-            let data_type = input_data["type"].as_str().ok_or(ParseError::ParsingError)?;
+            let data_type = input_data["type"]
+                .as_str()
+                .ok_or(ParseError::ParsingError)?;
 
-            let symbol_pair = parsed_data["s"].as_str().ok_or(ParseError::ParsingError)?.to_uppercase();
-            let asks = parse_bids_asks(parsed_data["a"].as_array().ok_or(ParseError::ParsingError)?);
-            let bids = parse_bids_asks(parsed_data["b"].as_array().ok_or(ParseError::ParsingError)?);
+            let symbol_pair = parsed_data["s"]
+                .as_str()
+                .ok_or(ParseError::ParsingError)?
+                .to_uppercase();
+            let asks = parse_bids_asks(
+                parsed_data["a"]
+                    .as_array()
+                    .ok_or(ParseError::ParsingError)?,
+            );
+            let bids = parse_bids_asks(
+                parsed_data["b"]
+                    .as_array()
+                    .ok_or(ParseError::ParsingError)?,
+            );
             let cur_seq = parsed_data["u"].as_i64().ok_or(ParseError::ParsingError)?;
             let prev_seq = 0;
             let timestamp = input_data["ts"].as_i64().ok_or(ParseError::ParsingError)?;
@@ -86,10 +106,10 @@ impl Parser for ByBitParser {
                         timestamp,
                     };
 
-                    return Ok(DataPacket::MI(enum_creator))
-                },
-                "snapshot" =>{
-                        let enum_creator = Snapshot {
+                    return Ok(DataPacket::MI(enum_creator));
+                }
+                "snapshot" => {
+                    let enum_creator = Snapshot {
                         symbol_pair,
                         asks,
                         bids,
@@ -98,8 +118,8 @@ impl Parser for ByBitParser {
                         timestamp,
                     };
 
-                    return Ok(DataPacket::ST(enum_creator))
-                },
+                    return Ok(DataPacket::ST(enum_creator));
+                }
                 _ => Err(ParseError::ParsingError)?,
             }
         } else {
@@ -109,6 +129,13 @@ impl Parser for ByBitParser {
 }
 
 impl SymbolHandler for ByBitSymbolHandler {
+    /// Requests all tradeable symbols from ByBit's http endpoint and parses the response into a vector of stirng. It
+    /// then retains all symbols except OKBUSDT (which errors) and then creates a JSON response containing the
+    /// reamining symbols as an argument.
+    ///
+    /// # Returns
+    /// A result containing a `Value` if the response is valid and contains the necessary symbol data. If the response
+    /// or parsing is unsuccessful, it will return a `SymbolError`.
     async fn get_symbols() -> Result<Symbols, SymbolError> {
         let response = match reqwest::get(BYBIT_SYMBOL_API).await {
             Ok(res) => res,

@@ -30,7 +30,10 @@ pub struct MarketIncremental {
     pub timestamp: i64,
 }
 
-/// Snapshot struct used to serialize data from orderbook snapshot endpoints on exchanges.
+/// Snapshot struct used to serialize data from orderbook snapshot endpoints on exchanges. While the `MarketIncremental`
+/// and `Snapshot` structs are similar, we use the enum variants in `DataPacket` to differentiate between the two before
+/// sending it to the proper buffer. This allows for reduced memory overhead in InfluxDB compared to using a flag
+/// without increasing the bottleneck of the system.
 #[derive(Serialize, Debug)]
 pub struct Snapshot {
     /// The symbol-pair of the coin being traded.
@@ -46,6 +49,3 @@ pub struct Snapshot {
     /// Timestamp at which the exchange generated this orderbook snapshot.
     pub timestamp: i64,
 }
-
-// snapshot and mi are copy pasted structs, but this is better than using a flag
-// in case we add stuff like BBO and TD

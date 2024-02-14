@@ -1,4 +1,3 @@
-use std::io::Read;
 use crate::data_packet::DataPacket;
 use crate::data_packet::MarketIncremental;
 use crate::data_packet::Snapshot;
@@ -11,6 +10,7 @@ use futures_util::stream::SplitStream;
 use futures_util::SinkExt;
 use futures_util::StreamExt;
 use serde_json::{json, Value};
+use std::io::Read;
 use tokio::net::TcpStream;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::MaybeTlsStream;
@@ -36,6 +36,12 @@ impl Listener for HuobiListener {
     type Parser = HuobiParser;
     type SymbolHandler = HuobiSymbolHandler;
 
+    /// This function connects to the Huobi websocket and sends all symbols to the websocket individually to subscribe
+    /// to each symbol for both market incremental and snapshot data.
+    ///
+    /// # Returns
+    /// A Result containing the write and read halves of the websocket stream if the connection was successful. Else, it
+    /// will return an Error.
     async fn connect() -> Result<
         (
             SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
@@ -54,12 +60,20 @@ impl Listener for HuobiListener {
         }
         return Err(Error::Io(std::io::Error::new(
             std::io::ErrorKind::Other,
-            "Symbol Error",
+            "Connection error. Huobi symbol retrieval failed.",
         )));
     }
 }
 
 impl Parser for HuobiParser {
+    /// Parses a tungstenite Message from the Huobi websocket for data. It first decompresses the message as Huobi sends
+    /// gzip compressed data. If it is not compressed, which shouldn't occur, it will simply parse it as a string.
+    ///
+    /// # Arguments
+    /// * `message` - A message of the `Message` type
+    ///
+    /// # Returns
+    /// A Result containing a `DataPacket` if parsing was successful. Else, it returns a `ParseError`.
     fn parse(message: Message) -> Result<DataPacket, ParseError> {
         let message = match message {
             Message::Text(text) => text,
@@ -79,19 +93,32 @@ impl Parser for HuobiParser {
 
         if input_data.is_null() {
             return Err(ParseError::ParsingError);
-
         } else if let Some(ping_key) = input_data.get("ping") {
             // handles pings
             let pong = json!({ "pong": ping_key }).to_string();
             Ok(DataPacket::Ping(pong))
-
         } else if let Some(parsed_data) = &input_data.get("tick") {
-            let data_type = parsed_data["event"].as_str().ok_or(ParseError::ParsingError)?;
+            let data_type = parsed_data["event"]
+                .as_str()
+                .ok_or(ParseError::ParsingError)?;
 
-            let symbol_pair = parsed_data["ch"].as_str().ok_or(ParseError::ParsingError)?.to_uppercase();
-            let asks = parse_bids_asks(parsed_data["asks"].as_array().ok_or(ParseError::ParsingError)?);
-            let bids = parse_bids_asks(parsed_data["bids"].as_array().ok_or(ParseError::ParsingError)?);
-            let cur_seq = parsed_data["version"].as_i64().ok_or(ParseError::ParsingError)?;
+            let symbol_pair = parsed_data["ch"]
+                .as_str()
+                .ok_or(ParseError::ParsingError)?
+                .to_uppercase();
+            let asks = parse_bids_asks(
+                parsed_data["asks"]
+                    .as_array()
+                    .ok_or(ParseError::ParsingError)?,
+            );
+            let bids = parse_bids_asks(
+                parsed_data["bids"]
+                    .as_array()
+                    .ok_or(ParseError::ParsingError)?,
+            );
+            let cur_seq = parsed_data["version"]
+                .as_i64()
+                .ok_or(ParseError::ParsingError)?;
             let prev_seq = 0;
             let timestamp = parsed_data["ts"].as_i64().ok_or(ParseError::ParsingError)?;
 
@@ -107,10 +134,10 @@ impl Parser for HuobiParser {
                         timestamp,
                     };
 
-                    return Ok(DataPacket::MI(enum_creator))
-                },
-                _ =>{
-                        let enum_creator = Snapshot {
+                    return Ok(DataPacket::MI(enum_creator));
+                }
+                _ => {
+                    let enum_creator = Snapshot {
                         symbol_pair,
                         asks,
                         bids,
@@ -119,7 +146,7 @@ impl Parser for HuobiParser {
                         timestamp,
                     };
 
-                    return Ok(DataPacket::ST(enum_creator))
+                    return Ok(DataPacket::ST(enum_creator));
                 }
             }
         } else {
@@ -129,6 +156,13 @@ impl Parser for HuobiParser {
 }
 
 impl SymbolHandler for HuobiSymbolHandler {
+    /// Requests all tradeable symbols from Huobi's http endpoint and parses the response. It then creates a vector of
+    /// strings that contain the both the market incremental and snapshot subscriptions, both of dpeth 20, for each
+    /// symbol.
+    ///
+    /// # Returns
+    /// A result containing a `Symbols` enum if the response is valid and contains the necessary symbol data. If the
+    /// response or parsing is unsuccessful, it will return a `SymbolError`.
     async fn get_symbols() -> Result<Symbols, SymbolError> {
         let response = match reqwest::get(HUOBI_SYMBOL_API).await {
             Ok(res) => res,

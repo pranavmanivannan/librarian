@@ -109,16 +109,19 @@ impl Buffer {
 
     /// Pushes the data in a buffer to an InfluxDB bucket.
     ///
+    /// # Arguments
+    /// * `data_type` - The type of data to push to InfluxDB.
+    ///
     /// # Returns
     /// A Result containing an empty Ok if pushing to InfluxDB was successful, else a DBError.
-    async fn push_to_influx(&self, buffer: DataType) -> Result<(), DBError> {
+    async fn push_to_influx(&self, data_type: DataType) -> Result<(), DBError> {
         dotenv().ok();
-        let storage = match buffer {
+        let storage = match data_type {
             DataType::MI => &self.snapshots,
             DataType::ST => &self.incrementals,
         };
         let data = storage.join("\n");
-        let bucket_name = match buffer {
+        let bucket_name = match data_type {
             DataType::MI => format!("{}-{}", &self.bucket, "Incremental"),
             DataType::ST => format!("{}-{}", &self.bucket, "Snapshot"),
         };
@@ -164,6 +167,8 @@ impl Buffer {
     }
 }
 
+/// The `DataType` enum allows for functions to differentiate between which type of data is being referred to when
+/// pushing to a buffer or InfluxDB.
 pub enum DataType {
     MI,
     ST,

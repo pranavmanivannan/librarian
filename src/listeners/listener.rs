@@ -34,7 +34,10 @@ pub trait Listener: Send + Sync {
             loop {
                 let (mut write, mut read) = match Self::connect().await {
                     Ok(stream_tuple) => stream_tuple,
-                    Err(_e) => continue,
+                    Err(_e) => {
+                        log::info!("{} - Reconnecting...", Self::exchange_name());
+                        continue;
+                    },
                 };
                 log::info!("{} - Websocket connection established!", Self::exchange_name());
                 while let Some(Ok(message)) = read.next().await {
@@ -55,7 +58,6 @@ pub trait Listener: Send + Sync {
                         }
                     }
                 }
-                log::info!("{} - Reconnecting...", Self::exchange_name());
             }
         })
     }
@@ -123,12 +125,13 @@ pub enum Symbols {
 /// may contain less than 5 bids or asks, but snapshot data will contain at least 5 per both bids and asks.
 ///
 /// # Returns
-/// A `Vec<Value>` containing the first 5 bids or asks.
-pub fn parse_bids_asks(data_vector: &Vec<Value>) -> Vec<Value> {
-    let data: Vec<Value> = if data_vector.len() >= 5 {
-        data_vector[..5].to_vec()
-    } else {
-        data_vector.to_vec()
-    };
+/// A `Vec<(f32,f32)>` containing the first 5 bids or asks.
+pub fn parse_bids_asks(data_vector: &Vec<Value>) -> Vec<(f32, f32)> {
+    let mut data: Vec<(f32, f32)> = Vec::new();
+    for pair in data_vector.iter() {
+        if let (Some(price), Some(quantity)) = (pair[0].as_f64(), pair[1].as_f64()) {
+            data.push((price as f32, quantity as f32));
+        }
+    }
     data
 }

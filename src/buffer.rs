@@ -84,7 +84,7 @@ impl Buffer {
                 );
                 self.incrementals.push(message);
                 if self.incrementals.len() >= self.capacity {
-                    // self.push_to_influx(DataType::MI).await?;
+                    self.push_to_influx(DataType::MI).await?;
                     self.incrementals.clear();
                 }
                 Ok(())
@@ -98,7 +98,7 @@ impl Buffer {
                 );
                 self.snapshots.push(message);
                 if self.snapshots.len() >= self.capacity {
-                    // self.push_to_influx(DataType::ST).await?;
+                    self.push_to_influx(DataType::ST).await?;
                     self.snapshots.clear();
                 }
                 Ok(())

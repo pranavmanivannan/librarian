@@ -84,7 +84,7 @@ impl Buffer {
                 );
                 self.incrementals.push(message);
                 if self.incrementals.len() >= self.capacity {
-                    self.push_to_influx(DataType::MI).await?;
+                    // self.push_to_influx(DataType::MI).await?;
                     self.incrementals.clear();
                 }
                 Ok(())
@@ -98,7 +98,7 @@ impl Buffer {
                 );
                 self.snapshots.push(message);
                 if self.snapshots.len() >= self.capacity {
-                    self.push_to_influx(DataType::ST).await?;
+                    // self.push_to_influx(DataType::ST).await?;
                     self.snapshots.clear();
                 }
                 Ok(())
@@ -146,7 +146,7 @@ impl Buffer {
         match response {
             Ok(res) => {
                 if res.status().is_success() {
-                    println!(
+                    log::info!(
                         "Uploaded bucket: {:?}, Status code: {:?}",
                         &self.bucket,
                         res.status()
@@ -155,12 +155,12 @@ impl Buffer {
                     println!("Uploaded Data:\n{}", data);
                     Ok(())
                 } else {
-                    eprintln!("Upload Error: HTTP {}", res.status());
+                    log::error!("Upload Error: HTTP {}", res.status());
                     Err(DBError::HttpError(res.status()))
                 }
             }
             Err(error) => {
-                eprintln!("Reqwest Error: {:?}", error);
+                log::error!("Reqwest Error: {:?}", error);
                 Err(DBError::ReqwestMiddlewareError(error))
             }
         }

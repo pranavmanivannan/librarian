@@ -55,10 +55,15 @@ impl Listener for ByBitListener {
             let _ = write.send(Message::Text(symbols)).await;
             return Ok((write, read));
         }
+        log::error!("ByBit - Connection error. Symbol retrieval failed.");
         return Err(Error::Io(std::io::Error::new(
             std::io::ErrorKind::Other,
-            "Connection error. ByBit symbol retrieval failed.",
+            "ByBit - Connection error. Symbol retrieval failed.",
         )));
+    }
+
+    fn exchange_name() -> String {
+        "ByBit".to_string()
     }
 }
 

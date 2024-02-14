@@ -57,11 +57,16 @@ impl Listener for BinanceListener {
             let _ = write.send(Message::Text(symbols.to_string())).await;
             return Ok((write, read));
         } else {
+            log::error!("Binance - Connection error. Symbol retrieval failed.");
             return Err(TungsteniteError::Io(std::io::Error::new(
                 std::io::ErrorKind::Other,
-                "Connection error. Binance symbol retrieval failed.",
+                "Binance - Connection error. Symbol retrieval failed.",
             )));
         }
+    }
+
+    fn exchange_name() -> String {
+        "Binance".to_string()
     }
 }
 

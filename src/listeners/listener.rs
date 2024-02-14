@@ -36,8 +36,10 @@ pub trait Listener: Send + Sync {
                     Ok(stream_tuple) => stream_tuple,
                     Err(_e) => continue,
                 };
+                log::info!("{} - Websocket connection established!", Self::exchange_name());
                 while let Some(Ok(message)) = read.next().await {
                     if let Message::Close(_) = message {
+                        log::info!("{} - Websocket connection closed!", Self::exchange_name());
                         break;
                     } else {
                         let data_packet = Self::Parser::parse(message);
@@ -45,7 +47,6 @@ pub trait Listener: Send + Sync {
                             match data_packet {
                                 DataPacket::Ping(pong) => {
                                     let _ = write.send(Message::Text(pong)).await;
-                                    log::info!("Pong sent");
                                 }
                                 _ => {
                                     let _ = sender_clone.send(data_packet);
@@ -54,6 +55,7 @@ pub trait Listener: Send + Sync {
                         }
                     }
                 }
+                log::info!("{} - Reconnecting...", Self::exchange_name());
             }
         })
     }
@@ -73,6 +75,12 @@ pub trait Listener: Send + Sync {
         ),
         Error,
     >;
+
+    /// This function is utilized when logging which exchange is reconnecting during the `listen` function.
+    ///
+    /// # Returns
+    /// A string containing the name of the exchange.
+    fn exchange_name() -> String;
 }
 
 /// The `Parser` trait contains the singular parse function that is custom implemented

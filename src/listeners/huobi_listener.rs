@@ -58,10 +58,15 @@ impl Listener for HuobiListener {
             }
             return Ok((write, read));
         }
+        log::error!("Huobi - Connection error. Symbol retrieval failed.");
         return Err(Error::Io(std::io::Error::new(
             std::io::ErrorKind::Other,
-            "Connection error. Huobi symbol retrieval failed.",
+            "Huobi - Connection error. Symbol retrieval failed.",
         )));
+    }
+
+    fn exchange_name() -> String {
+        "Huobi".to_string()
     }
 }
 

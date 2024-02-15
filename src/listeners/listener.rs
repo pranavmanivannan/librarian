@@ -44,16 +44,15 @@ pub trait Listener: Send + Sync {
                     if let Message::Close(_) = message {
                         log::info!("{} - Websocket connection closed!", Self::exchange_name());
                         break;
-                    } else {
-                        let data_packet = Self::Parser::parse(message);
-                        if let Ok(data_packet) = data_packet {
-                            match data_packet {
-                                DataPacket::Ping(pong) => {
-                                    let _ = write.send(Message::Text(pong)).await;
-                                }
-                                _ => {
-                                    let _ = sender_clone.send(data_packet);
-                                }
+                    }
+                    let data_packet = Self::Parser::parse(message);
+                    if let Ok(data_packet) = data_packet {
+                        match data_packet {
+                            DataPacket::Ping(pong) => {
+                                let _ = write.send(Message::Text(pong)).await;
+                            }
+                            _ => {
+                                let _ = sender_clone.send(data_packet);
                             }
                         }
                     }
@@ -125,13 +124,12 @@ pub enum Symbols {
 /// may contain less than 5 bids or asks, but snapshot data will contain at least 5 per both bids and asks.
 ///
 /// # Returns
-/// A `Vec<(f32,f32)>` containing the first 5 bids or asks.
-pub fn parse_bids_asks(data_vector: &Vec<Value>) -> Vec<(f32, f32)> {
-    let mut data: Vec<(f32, f32)> = Vec::new();
-    for pair in data_vector.iter() {
-        if let (Some(price), Some(quantity)) = (pair[0].as_f64(), pair[1].as_f64()) {
-            data.push((price as f32, quantity as f32));
-        }
-    }
+/// A `Vec<Value>` containing up to the first 5 bids or asks.
+pub fn parse_bids_asks(data_vector: &Vec<Value>) -> Vec<Value> {
+    let data: Vec<Value> = if data_vector.len() >= 5 {
+        data_vector[..5].to_vec()
+    } else {
+        data_vector.to_vec()
+    };
     data
 }

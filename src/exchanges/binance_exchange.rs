@@ -1,7 +1,6 @@
-use std::time::Duration;
-
 use async_trait::async_trait;
-use tokio::{task::JoinHandle, time::sleep};
+use futures_util::future::join_all;
+use tokio::task::JoinHandle;
 
 use crate::{
     buffer::Buffer,
@@ -40,28 +39,49 @@ impl Exchange for BinanceExchange {
 
         let http_listener: JoinHandle<Result<(), SymbolError>> = tokio::spawn(async move {
             loop {
-                let symbols = BinanceSymbolHandler::get_symbols().await;
-                if let Ok(Symbols::SymbolVector(symbols)) = symbols {
-                    for symbol in symbols {
-                        let new_symbol = symbol.replace("@depth", "").to_uppercase();
-                        let url = format!("{}{}&limit=5", BINANCE_HTTP, new_symbol);
-                        // println!("url: {:?}", url);
-                        let response = match reqwest::get(url).await {
-                            Ok(res) => res.text().await,
-                            Err(err) => return Err(SymbolError::ReqwestError(err)),
-                        };
-                        if let Ok(response) = response {
-                            if !response.contains("code") {
-                                let result_packet = BinanceParser::parse(response.as_str().into());
-                                if let Ok(DataPacket::ST(mut packet)) = result_packet {
-                                    packet.symbol_pair = new_symbol;
-                                    let _ = sender.send(DataPacket::ST(packet));
-                                }
+                // Get all Binance symbols to request snapshots for. We should be getting the symbols in the form of a
+                // vector, so a string of symbols means we requested an incorrect endpoint or the get_symbols method is
+                // malfunctioning.
+                let mut symbols = match BinanceSymbolHandler::get_symbols().await {
+                    Ok(Symbols::SymbolVector(symbols)) => symbols,
+                    Ok(Symbols::SymbolString(_)) => continue,
+                    Err(_err) => continue,
+                };
+
+                // Edit each symbol to its corresponding snapshot URL endpoint.
+                for symbol in &mut symbols {
+                    let cleaned_symbol = symbol.replace("@depth", "").to_uppercase();
+                    *symbol = format!("{}{}&limit=5", BINANCE_HTTP, cleaned_symbol);
+                }
+
+                // Permanently loop over requesting the snapshot for each endpoint and parsing it. There should be no
+                // reason to break out of this loop as all error handling, such as getting an invalid response,
+                // is done within it.
+                loop {
+                    let responses = symbols.iter().map(|symbol| {
+                        let sender_clone = sender.clone();
+                        async move {
+                            let response = match reqwest::get(symbol).await {
+                                Ok(res) => res,
+                                Err(_err) => return,
+                            };
+                            let response_text = match response.text().await {
+                                Ok(res_text) => res_text,
+                                Err(_err) => return,
+                            };
+                            if response_text.contains("code") {
+                                return;
+                            }
+                            let packet = BinanceParser::parse(response_text.into());
+                            if let Ok(DataPacket::ST(mut packet)) = packet {
+                                packet.symbol_pair = symbol.to_string();
+                                println!("{:?}", packet);
+                                let _ = sender_clone.send(DataPacket::ST(packet));
                             }
                         }
-                    }
+                    });
+                    let _ = join_all(responses).await;
                 }
-                sleep(Duration::from_secs(5)).await;
             }
         });
 

@@ -117,8 +117,8 @@ impl Buffer {
     async fn push_to_influx(&self, data_type: DataType) -> Result<(), DBError> {
         dotenv().ok();
         let storage = match data_type {
-            DataType::MI => &self.snapshots,
-            DataType::ST => &self.incrementals,
+            DataType::MI => &self.incrementals,
+            DataType::ST => &self.snapshots,
         };
         let data = storage.join("\n");
         let bucket_name = match data_type {

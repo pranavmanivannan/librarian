@@ -37,9 +37,12 @@ pub trait Listener: Send + Sync {
                     Err(_e) => {
                         log::info!("{} - Reconnecting...", Self::exchange_name());
                         continue;
-                    },
+                    }
                 };
-                log::info!("{} - Websocket connection established!", Self::exchange_name());
+                log::info!(
+                    "{} - Websocket connection established!",
+                    Self::exchange_name()
+                );
                 while let Some(Ok(message)) = read.next().await {
                     if let Message::Close(_) = message {
                         log::info!("{} - Websocket connection closed!", Self::exchange_name());

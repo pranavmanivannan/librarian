@@ -1,14 +1,14 @@
-use crate::data_packet::DataPacket;
-use crate::error::ParseError;
-use crate::error::SymbolError;
+use crate::{
+    data_packet::DataPacket,
+    error::{ParseError, SymbolError},
+};
 use async_trait::async_trait;
-use futures_util::stream::{SplitSink, SplitStream};
-use futures_util::SinkExt;
-use futures_util::StreamExt;
+use futures_util::{
+    stream::{SplitSink, SplitStream},
+    SinkExt, StreamExt,
+};
 use serde_json::Value;
-use tokio::net::TcpStream;
-use tokio::sync::mpsc::UnboundedSender;
-use tokio::task::JoinHandle;
+use tokio::{net::TcpStream, sync::mpsc::UnboundedSender, task::JoinHandle};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tungstenite::{Error, Message};
 

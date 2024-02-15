@@ -1,25 +1,19 @@
-use crate::data_packet::DataPacket;
-use crate::data_packet::MarketIncremental;
-use crate::data_packet::Snapshot;
-use crate::error::ParseError;
-use crate::error::SymbolError;
+use super::listener::{parse_bids_asks, Listener, Parser, SymbolHandler, Symbols};
+use crate::{
+    data_packet::{DataPacket, MarketIncremental, Snapshot},
+    error::{ParseError, SymbolError},
+};
 use async_trait::async_trait;
-use futures_util::stream::SplitSink;
-use futures_util::stream::SplitStream;
-use futures_util::SinkExt;
-use futures_util::StreamExt;
+use futures_util::{
+    stream::{SplitSink, SplitStream},
+    SinkExt, StreamExt,
+};
 use serde_json::Value;
 use tokio::net::TcpStream;
-use tokio_tungstenite::connect_async;
-use tokio_tungstenite::tungstenite::error::Error as TungsteniteError;
-use tokio_tungstenite::MaybeTlsStream;
-use tokio_tungstenite::WebSocketStream;
-use tungstenite::Error;
-use tungstenite::Message;
-
-use super::listener::parse_bids_asks;
-use super::listener::Symbols;
-use super::listener::{Listener, Parser, SymbolHandler};
+use tokio_tungstenite::{
+    connect_async, tungstenite::error::Error as TungsteniteError, MaybeTlsStream, WebSocketStream,
+};
+use tungstenite::{Error, Message};
 
 const BINANCE_WS: &str = "wss://fstream.binance.com";
 const BINANCE_SYMBOL_API: &str = "https://api.binance.us/api/v3/exchangeInfo";

@@ -1,24 +1,17 @@
-use crate::data_packet::DataPacket;
-use crate::data_packet::MarketIncremental;
-use crate::data_packet::Snapshot;
-use crate::error::ParseError;
-use crate::error::SymbolError;
+use super::listener::{parse_bids_asks, Listener, Parser, SymbolHandler, Symbols};
+use crate::{
+    data_packet::{DataPacket, MarketIncremental, Snapshot},
+    error::{ParseError, SymbolError},
+};
 use async_trait::async_trait;
-use futures_util::stream::SplitSink;
-use futures_util::stream::SplitStream;
-use futures_util::SinkExt;
-use futures_util::StreamExt;
+use futures_util::{
+    stream::{SplitSink, SplitStream},
+    SinkExt, StreamExt,
+};
 use serde_json::{json, Value};
 use tokio::net::TcpStream;
-use tokio_tungstenite::connect_async;
-use tokio_tungstenite::MaybeTlsStream;
-use tokio_tungstenite::WebSocketStream;
-use tungstenite::Error;
-use tungstenite::Message;
-
-use super::listener::parse_bids_asks;
-use super::listener::Symbols;
-use super::listener::{Listener, Parser, SymbolHandler};
+use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
+use tungstenite::{Error, Message};
 
 /// The websocket url used to connect to ByBit's perpetuals and futures market data.
 const BYBIT_WS: &str = "wss://stream.bybit.com/v5/public/linear";

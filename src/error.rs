@@ -1,6 +1,7 @@
 use std::fmt;
 
 /// Custom error type used to handle errors that may occur when retrieving symbols from an exchange's HTTP endpoint.
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 pub enum SymbolError {
     /// Wraps reqwest errors that occur when either the request to retrieve all symbols fails or deserializing the
@@ -21,6 +22,7 @@ impl fmt::Display for SymbolError {
 }
 
 /// Custom error type used to handle errors that may occur when parsing messages from a websocket connection.
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 pub enum ParseError {
     /// Wraps errors that occur when trying to parse JSON data from a websocket message converted to a string.
@@ -45,6 +47,7 @@ impl fmt::Display for ParseError {
 }
 
 /// Custom error type used to handle errors that may occur when pushing to a buffer or InfluxDB.
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 pub enum DBError {
     /// Wraps reqwest HTTP errors when pushing to InfluxDB. Usually occurs due to a 404 meaning the bucket does not

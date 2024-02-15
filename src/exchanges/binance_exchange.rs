@@ -45,7 +45,7 @@ impl Exchange for BinanceExchange {
                 let mut symbols = match BinanceSymbolHandler::get_symbols().await {
                     Ok(Symbols::SymbolVector(symbols)) => symbols,
                     Ok(Symbols::SymbolString(_)) => continue,
-                    Err(_err) => continue,
+                    Err(_e) => continue,
                 };
 
                 // Edit each symbol to its corresponding snapshot URL endpoint.
@@ -63,11 +63,11 @@ impl Exchange for BinanceExchange {
                         async move {
                             let response = match reqwest::get(symbol).await {
                                 Ok(res) => res,
-                                Err(_err) => return,
+                                Err(_e) => return,
                             };
                             let response_text = match response.text().await {
                                 Ok(res_text) => res_text,
-                                Err(_err) => return,
+                                Err(_e) => return,
                             };
                             if response_text.contains("code") {
                                 return;
@@ -75,7 +75,6 @@ impl Exchange for BinanceExchange {
                             let packet = BinanceParser::parse(response_text.into());
                             if let Ok(DataPacket::ST(mut packet)) = packet {
                                 packet.symbol_pair = symbol.to_string();
-                                println!("{:?}", packet);
                                 let _ = sender_clone.send(DataPacket::ST(packet));
                             }
                         }

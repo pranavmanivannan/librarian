@@ -57,7 +57,6 @@ impl Listener for BinanceListener {
             let _ = write.send(Message::Text(symbols.to_string())).await;
             return Ok((write, read));
         } else {
-            log::error!("Binance - Connection error. Symbol retrieval failed.");
             return Err(TungsteniteError::Io(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "Binance - Connection error. Symbol retrieval failed.",
@@ -161,7 +160,7 @@ impl SymbolHandler for BinanceSymbolHandler {
     async fn get_symbols() -> Result<Symbols, SymbolError> {
         let response = match reqwest::get(BINANCE_SYMBOL_API).await {
             Ok(res) => res,
-            Err(err) => return Err(SymbolError::ReqwestError(err)),
+            Err(e) => return Err(SymbolError::ReqwestError(e)),
         };
 
         let json_result: Value = response.json().await.map_err(SymbolError::ReqwestError)?;

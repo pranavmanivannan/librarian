@@ -159,9 +159,9 @@ impl Buffer {
                     Err(DBError::HttpError(res.status()))
                 }
             }
-            Err(error) => {
-                log::error!("Reqwest Error: {:?}", error);
-                Err(DBError::ReqwestMiddlewareError(error))
+            Err(e) => {
+                log::error!("Reqwest Error: {:?}", e);
+                Err(DBError::ReqwestMiddlewareError(e))
             }
         }
     }

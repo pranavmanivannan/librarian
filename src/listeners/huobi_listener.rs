@@ -58,7 +58,6 @@ impl Listener for HuobiListener {
             }
             return Ok((write, read));
         }
-        log::error!("Huobi - Connection error. Symbol retrieval failed.");
         return Err(Error::Io(std::io::Error::new(
             std::io::ErrorKind::Other,
             "Huobi - Connection error. Symbol retrieval failed.",
@@ -171,7 +170,7 @@ impl SymbolHandler for HuobiSymbolHandler {
     async fn get_symbols() -> Result<Symbols, SymbolError> {
         let response = match reqwest::get(HUOBI_SYMBOL_API).await {
             Ok(res) => res,
-            Err(err) => return Err(SymbolError::ReqwestError(err)),
+            Err(e) => return Err(SymbolError::ReqwestError(e)),
         };
 
         let json_result: Value = response.json().await.map_err(SymbolError::ReqwestError)?;

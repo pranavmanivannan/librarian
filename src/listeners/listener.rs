@@ -35,7 +35,7 @@ pub trait Listener: Send + Sync {
                 let (mut write, mut read) = match Self::connect().await {
                     Ok(stream_tuple) => stream_tuple,
                     Err(_e) => {
-                        log::info!("{} - Reconnecting...", Self::exchange_name());
+                        log::error!("{} - Reconnecting...", Self::exchange_name());
                         continue;
                     }
                 };

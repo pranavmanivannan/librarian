@@ -1,5 +1,4 @@
 use serde::Serialize;
-use serde_json::Value;
 
 /// The DataPacket Enum contains various structs. This allows for the `Parser` trait to parse a `Message` from any
 /// endpoint and return a singular data type that can be sent over a `channel`.
@@ -19,9 +18,9 @@ pub struct MarketIncremental {
     /// The symbol-pair of the coin being traded.
     pub symbol_pair: String,
     /// Up to top 5 asks.
-    pub asks: Vec<Value>,
+    pub asks: Vec<(f32, f32)>,
     /// Up to top 5 bids.
-    pub bids: Vec<Value>,
+    pub bids:  Vec<(f32, f32)>,
     /// Current sequence number of the generated data.
     pub cur_seq: i64,
     /// Previous sequence number of the generated data. Used for keeping track of the orderbook.
@@ -39,9 +38,9 @@ pub struct Snapshot {
     /// The symbol-pair of the coin being traded.
     pub symbol_pair: String,
     /// Top 5 asks.
-    pub asks: Vec<Value>,
+    pub asks:  Vec<(f32, f32)>,
     /// Top 5 bids.
-    pub bids: Vec<Value>,
+    pub bids:  Vec<(f32, f32)>,
     /// Current sequence number of the generated data.
     pub cur_seq: i64,
     /// Previous sequence number of the generated data. Used for keeping track of the orderbook.

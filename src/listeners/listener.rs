@@ -128,10 +128,9 @@ pub enum Symbols {
 ///
 /// # Returns
 /// A `Vec<Value>` containing up to the first 5 bids or asks.
-pub fn parse_bids_asks(data_vector: &Vec<Value>) -> Vec<(f32, f32)> {
-    let mut data_count = 0;
-    let mut res_vector: Vec<(f32,f32)> = Vec::new();
-    for data in data_vector.iter() {
+pub fn parse_bids_asks(data_vector: &[Value]) -> Vec<(f32, f32)> {
+    let mut res_vector: Vec<(f32, f32)> = Vec::new();
+    for (data_count, data) in data_vector.iter().enumerate() {
         if data_count >= 5 {
             break;
         }
@@ -140,13 +139,11 @@ pub fn parse_bids_asks(data_vector: &Vec<Value>) -> Vec<(f32, f32)> {
             res_vector.push(data_pair);
         } else if let (Some(price), Some(quantity)) = (
             data[0].as_str().and_then(|s| s.parse::<f32>().ok()),
-            data[1].as_str().and_then(|s| s.parse::<f32>().ok())
+            data[1].as_str().and_then(|s| s.parse::<f32>().ok()),
         ) {
             let data_pair: (f32, f32) = (price, quantity);
             res_vector.push(data_pair);
         }
-        data_count += 1;
     }
     res_vector
 }
-

@@ -20,7 +20,7 @@ pub struct MarketIncremental {
     /// Up to top 5 asks.
     pub asks: Vec<(f32, f32)>,
     /// Up to top 5 bids.
-    pub bids:  Vec<(f32, f32)>,
+    pub bids: Vec<(f32, f32)>,
     /// Current sequence number of the generated data.
     pub cur_seq: i64,
     /// Previous sequence number of the generated data. Used for keeping track of the orderbook.
@@ -38,9 +38,9 @@ pub struct Snapshot {
     /// The symbol-pair of the coin being traded.
     pub symbol_pair: String,
     /// Top 5 asks.
-    pub asks:  Vec<(f32, f32)>,
+    pub asks: Vec<(f32, f32)>,
     /// Top 5 bids.
-    pub bids:  Vec<(f32, f32)>,
+    pub bids: Vec<(f32, f32)>,
     /// Current sequence number of the generated data.
     pub cur_seq: i64,
     /// Previous sequence number of the generated data. Used for keeping track of the orderbook.

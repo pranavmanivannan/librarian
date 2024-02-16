@@ -151,8 +151,6 @@ impl Buffer {
                         &self.bucket,
                         res.status()
                     );
-                    let data = res.text().await.map_err(DBError::ReqwestError)?;
-                    println!("Uploaded Data:\n{}", data);
                     Ok(())
                 } else {
                     log::error!("Upload Error: HTTP {}", res.status());

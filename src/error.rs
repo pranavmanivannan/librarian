@@ -53,9 +53,6 @@ pub enum DBError {
     /// Wraps reqwest HTTP errors when pushing to InfluxDB. Usually occurs due to a 404 meaning the bucket does not
     /// exist or the exchange name used as input in `build` for the `Exchange` trait is incorrect.
     HttpError(reqwest::StatusCode),
-    /// Wraps reqwest errors that occur after pushing to InfluxDB. This usually occurs when trying to read the HTTP
-    /// response text.
-    ReqwestError(reqwest::Error),
     /// Wraps the reqwest middleware client errors that occur when the response itself does not go through or is not
     /// successful.
     ReqwestMiddlewareError(reqwest_middleware::Error),
@@ -67,7 +64,6 @@ impl fmt::Display for DBError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             DBError::HttpError(ref status) => write!(f, "HTTP Error: {}", status),
-            DBError::ReqwestError(ref error) => write!(f, "Reqwest Error: {}", error),
             DBError::ReqwestMiddlewareError(ref error) => {
                 write!(f, "Reqwest middleware Error: {}", error)
             }

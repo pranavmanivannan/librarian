@@ -148,7 +148,7 @@ impl Buffer {
                 if res.status().is_success() {
                     log::info!(
                         "Uploaded bucket: {:?}, Status code: {:?}",
-                        &self.bucket,
+                        bucket_name,
                         res.status()
                     );
                     Ok(())

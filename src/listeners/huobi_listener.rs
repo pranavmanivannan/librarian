@@ -102,7 +102,9 @@ impl Parser for HuobiParser {
             let symbol_pair = parsed_data["ch"]
                 .as_str()
                 .ok_or(ParseError::ParsingError)?
-                .to_uppercase();
+                .to_uppercase()
+                .replace("MARKET.", "")
+                .replace(".DEPTH.SIZE_20.HIGH_FREQ", "");
             let asks = parse_bids_asks(
                 parsed_data["asks"]
                     .as_array()

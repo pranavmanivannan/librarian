@@ -6,7 +6,7 @@ use crate::{
 use async_trait::async_trait;
 use futures_util::{
     stream::{SplitSink, SplitStream},
-    SinkExt, StreamExt,
+    StreamExt,
 };
 use serde_json::Value;
 use tokio::net::TcpStream;
@@ -47,8 +47,7 @@ impl Listener for BinanceListener {
             let symbols = symbol_list.join("/");
             let binance_url = format!("{}/stream?streams={}", BINANCE_WS, symbols);
             let (socket, _) = connect_async(binance_url).await?;
-            let (mut write, read) = socket.split();
-            let _ = write.send(Message::Text(symbols.to_string())).await;
+            let (write, read) = socket.split();
             return Ok((write, read));
         } else {
             return Err(TungsteniteError::Io(std::io::Error::new(

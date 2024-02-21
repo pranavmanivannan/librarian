@@ -80,6 +80,7 @@ impl Exchange for BinanceExchange {
                         }
                     });
                     let _ = join_all(responses).await;
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                 }
             }
         });

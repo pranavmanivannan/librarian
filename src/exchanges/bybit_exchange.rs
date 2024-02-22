@@ -1,5 +1,5 @@
 use super::exchange::{Exchange, TaskSet};
-use crate::{buffer::Buffer, listeners::{bybit_listener::ByBitListener, listener::Listener}};
+use crate::{buffer::Buffer, listeners::{bybit_listener::ByBitListener, bybit_snap_listener::ByBitSnapshotListener, listener::Listener}};
 use async_trait::async_trait;
 
 pub struct ByBitExchange {}
@@ -25,7 +25,7 @@ impl Exchange for ByBitExchange {
 
         let snapshot_listener = tokio::spawn(async move {
             loop{
-                let snap_listener = ByBitListener::listen(sender.clone()).await;
+                let snap_listener = ByBitSnapshotListener::listen(sender.clone()).await;
                 tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                 drop(snap_listener);
             }

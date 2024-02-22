@@ -78,52 +78,10 @@ impl Parser for ByBitParser {
             let data_type = input_data["type"]
                 .as_str()
                 .ok_or(ParseError::ParsingError)?;
-
-            let symbol_pair = parsed_data["s"]
-                .as_str()
-                .ok_or(ParseError::ParsingError)?
-                .to_uppercase();
-            let asks = parse_bids_asks(
-                parsed_data["a"]
-                    .as_array()
-                    .ok_or(ParseError::ParsingError)?,
-            );
-            let bids = parse_bids_asks(
-                parsed_data["b"]
-                    .as_array()
-                    .ok_or(ParseError::ParsingError)?,
-            );
-            let cur_seq = parsed_data["u"].as_i64().ok_or(ParseError::ParsingError)?;
-            let prev_seq = 0;
-            let timestamp = input_data["ts"].as_i64().ok_or(ParseError::ParsingError)?;
-
-            // Datapacket creation
-            match data_type {
-                "delta" => {
-                    let enum_creator = MarketIncremental {
-                        symbol_pair,
-                        asks,
-                        bids,
-                        cur_seq,
-                        prev_seq,
-                        timestamp,
-                    };
-
-                    return Ok(DataPacket::MI(enum_creator));
-                }
-                "snapshot" => {
-                    let enum_creator = Snapshot {
-                        symbol_pair,
-                        asks,
-                        bids,
-                        cur_seq,
-                        prev_seq,
-                        timestamp,
-                    };
-
-                    return Ok(DataPacket::ST(enum_creator));
-                }
-                _ => Err(ParseError::ParsingError)?,
+            if data_type == "delta" {
+                bybit_parser(&input_data, parsed_data, "delta")
+            } else {
+                return Err(ParseError::ParsingError);
             }
         } else {
             return Err(ParseError::ParsingError);
@@ -170,5 +128,61 @@ impl SymbolHandler for ByBitSymbolHandler {
         });
 
         Ok(Symbols::SymbolString(symbols.to_string()))
+    }
+}
+
+
+
+
+pub fn bybit_parser(input_data: &Value, parsed_data: &&Value, data_type:&str) -> Result<DataPacket, ParseError> {
+    // let data_type = input_data["type"]
+    // .as_str()
+    // .ok_or(ParseError::ParsingError)?;
+
+    let symbol_pair = parsed_data["s"]
+        .as_str()
+        .ok_or(ParseError::ParsingError)?
+        .to_uppercase();
+    let asks = parse_bids_asks(
+        parsed_data["a"]
+            .as_array()
+            .ok_or(ParseError::ParsingError)?,
+    );
+    let bids = parse_bids_asks(
+        parsed_data["b"]
+            .as_array()
+            .ok_or(ParseError::ParsingError)?,
+    );
+    let cur_seq = parsed_data["u"].as_i64().ok_or(ParseError::ParsingError)?;
+    let prev_seq = 0;
+    let timestamp = input_data["ts"].as_i64().ok_or(ParseError::ParsingError)?;
+
+    // Datapacket creation
+    match data_type {
+        "delta" => {
+            let enum_creator = MarketIncremental {
+                symbol_pair,
+                asks,
+                bids,
+                cur_seq,
+                prev_seq,
+                timestamp,
+            };
+
+            return Ok(DataPacket::MI(enum_creator));
+        }
+        "snapshot" => {
+            let enum_creator = Snapshot {
+                symbol_pair,
+                asks,
+                bids,
+                cur_seq,
+                prev_seq,
+                timestamp,
+            };
+
+            return Ok(DataPacket::ST(enum_creator));
+        }
+        _ => Err(ParseError::ParsingError)?,
     }
 }

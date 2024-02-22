@@ -34,10 +34,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log4rs::init_config(config)?;
 
     let bybit = ByBitExchange::build("ByBit").await;
-    let huobi = HuobiExchange::build("Huobi").await;
-    let binance = BinanceExchange::build("Binance").await;
+    // let huobi = HuobiExchange::build("Huobi").await;
+    // let binance = BinanceExchange::build("Binance").await;
 
-    for exchange in [bybit, huobi, binance] {
+    for exchange in [bybit] {
         match exchange {
             TaskSet::Default(listener, buffer) => {
                 let _ = tokio::join!(listener, buffer);

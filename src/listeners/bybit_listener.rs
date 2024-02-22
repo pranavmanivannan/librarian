@@ -160,7 +160,7 @@ impl SymbolHandler for ByBitSymbolHandler {
             symbol_list.push(format!("orderbook.50.{symbol}"));
         }
 
-        symbol_list.retain(|symbol| symbol != "orderbook.50.OKBUSDT");
+        symbol_list.retain(|symbol| symbol == "orderbook.50.BANDUSDT");
 
         log::info!("ByBit - Successfully retrieved all symbols!");
 

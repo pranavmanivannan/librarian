@@ -55,7 +55,6 @@ pub trait Listener: Send + Sync {
                                 let _ = write.send(Message::Text(pong)).await;
                             }
                             _ => {
-                                println!("datapacket:{:?}", data_packet);
                                 let _ = sender_clone.send(data_packet);
                             }
                         }

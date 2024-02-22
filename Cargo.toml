@@ -32,3 +32,4 @@ url = "2.2.2"
 tungstenite = { version = "0.21.0", features = ["native-tls"] }
 log = "0.4.20"
 log4rs = "1.0"
+lazy_static = "1.4"

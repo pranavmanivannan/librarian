@@ -1,4 +1,4 @@
-use crate::{background::storage_loop, data_packet, error::DBError};
+use crate::{background::storage_loop, data_packet, error::DBError, stats::COUNTER};
 use data_packet::DataPacket;
 use dotenv::dotenv;
 use reqwest::{self};
@@ -83,6 +83,7 @@ impl Buffer {
                     msg.symbol_pair, asks, bids, msg.cur_seq, msg.prev_seq, msg.timestamp
                 );
                 self.incrementals.push(message);
+                COUNTER.increment();
                 if self.incrementals.len() >= self.capacity {
                     self.push_to_influx(DataType::MI).await?;
                     self.incrementals.clear();
@@ -97,6 +98,7 @@ impl Buffer {
                     msg.symbol_pair, asks, bids, msg.cur_seq, msg.prev_seq, msg.timestamp
                 );
                 self.snapshots.push(message);
+                COUNTER.increment();
                 if self.snapshots.len() >= self.capacity {
                     self.push_to_influx(DataType::ST).await?;
                     self.snapshots.clear();

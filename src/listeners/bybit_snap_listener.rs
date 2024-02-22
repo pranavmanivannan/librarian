@@ -1,7 +1,6 @@
-use super::{bybit_listener::{bybit_parser, ByBitListener, ByBitSymbolHandler}, listener::{Listener, Parser, SymbolHandler, Symbols}};
+use super::{bybit_listener::{bybit_parser, ByBitListener, ByBitSymbolHandler}, listener::{Listener, Parser}};
 use crate::{
-    data_packet::DataPacket,
-    error::{ParseError, SymbolError},
+    data_packet::DataPacket, error::ParseError,
 };
 use async_trait::async_trait;
 use futures_util::stream::{SplitSink, SplitStream};
@@ -11,12 +10,11 @@ use tungstenite::{Error, Message};
 
 pub struct ByBitSnapshotListener {}
 pub struct ByBitSnapshotParser {}
-pub struct ByBitSnapshotSymbolHandler {}
 
 #[async_trait]
 impl Listener for ByBitSnapshotListener {
     type Parser = ByBitSnapshotParser;
-    type SymbolHandler = ByBitSnapshotSymbolHandler;
+    type SymbolHandler = ByBitSymbolHandler;
 
     async fn connect() -> Result<
         (
@@ -53,11 +51,5 @@ impl Parser for ByBitSnapshotParser {
         } else {
             return Err(ParseError::ParsingError);
         }
-    }
-}
-
-impl SymbolHandler for ByBitSnapshotSymbolHandler {
-    async fn get_symbols() -> Result<Symbols, SymbolError> {
-        ByBitSymbolHandler::get_symbols().await
     }
 }

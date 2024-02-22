@@ -1,3 +1,5 @@
+use crate::stats::COUNTER;
+use background::stats_loop;
 use exchanges::{
     binance_exchange::BinanceExchange,
     bybit_exchange::ByBitExchange,
@@ -11,8 +13,6 @@ use log4rs::{
     encode::pattern::PatternEncoder,
     Config,
 };
-use crate::stats::COUNTER;
-use background::stats_loop;
 
 mod background;
 mod buffer;

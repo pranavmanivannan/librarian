@@ -17,11 +17,19 @@ pub async fn storage_loop(mut buffer: Buffer, mut receiver: UnboundedReceiver<Da
     }
 }
 
+/// Runs a background task that gets the number of messages ingested into a buffer every 10 seconds to calculate
+/// throughput and logs it to a file.
+///
+/// Arguments
+/// * `counter` - A reference to an Arc<Counter> used to keep track of the number of messages ingested.
 pub async fn stats_loop(counter: &Arc<Counter>) {
     loop {
         let count: f64 = counter.get_value() as f64;
         counter.reset();
-        log::info!("throughput: {:?}", count / 10.0);
+        log::info!(
+            "Messages ingested per second (throughput): {:?}",
+            count / 10.0
+        );
         tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
     }
 }

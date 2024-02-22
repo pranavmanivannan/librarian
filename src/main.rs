@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let binance = BinanceExchange::build("Binance").await;
     stats_loop(&THROUGHPUT, &PARSETIME, &PACKETSIZE).await;
 
-    for exchange in [bybit] {
+    for exchange in [bybit, huobi, binance] {
         match exchange {
             TaskSet::Default(listener, buffer) => {
                 let _ = tokio::join!(listener, buffer);

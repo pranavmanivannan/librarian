@@ -118,7 +118,7 @@ impl SymbolHandler for ByBitSymbolHandler {
             symbol_list.push(format!("orderbook.50.{symbol}"));
         }
 
-        symbol_list.retain(|symbol| symbol == "orderbook.50.BANDUSDT");
+        symbol_list.retain(|symbol| symbol != "orderbook.50.OKBUSDT");
 
         log::info!("ByBit - Successfully retrieved all symbols!");
 
@@ -131,14 +131,7 @@ impl SymbolHandler for ByBitSymbolHandler {
     }
 }
 
-
-
-
 pub fn bybit_parser(input_data: &Value, parsed_data: &&Value, data_type:&str) -> Result<DataPacket, ParseError> {
-    // let data_type = input_data["type"]
-    // .as_str()
-    // .ok_or(ParseError::ParsingError)?;
-
     let symbol_pair = parsed_data["s"]
         .as_str()
         .ok_or(ParseError::ParsingError)?

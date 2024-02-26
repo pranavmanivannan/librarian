@@ -89,6 +89,7 @@ impl Parser for ByBitParser {
     }
 }
 
+#[async_trait]
 impl SymbolHandler for ByBitSymbolHandler {
     /// Requests all tradeable symbols from ByBit's http endpoint and parses the response into a vector of stirng. It
     /// then retains all symbols except OKBUSDT (which errors) and then creates a JSON response containing the
@@ -131,7 +132,11 @@ impl SymbolHandler for ByBitSymbolHandler {
     }
 }
 
-pub fn bybit_parser(input_data: &Value, parsed_data: &&Value, data_type:&str) -> Result<DataPacket, ParseError> {
+pub fn bybit_parser(
+    input_data: &Value,
+    parsed_data: &&Value,
+    data_type: &str,
+) -> Result<DataPacket, ParseError> {
     let symbol_pair = parsed_data["s"]
         .as_str()
         .ok_or(ParseError::ParsingError)?
@@ -162,7 +167,7 @@ pub fn bybit_parser(input_data: &Value, parsed_data: &&Value, data_type:&str) ->
                 timestamp,
             };
 
-            return Ok(DataPacket::MI(enum_creator));
+            Ok(DataPacket::MI(enum_creator))
         }
         "snapshot" => {
             let enum_creator = Snapshot {
@@ -174,7 +179,7 @@ pub fn bybit_parser(input_data: &Value, parsed_data: &&Value, data_type:&str) ->
                 timestamp,
             };
 
-            return Ok(DataPacket::ST(enum_creator));
+            Ok(DataPacket::ST(enum_creator))
         }
         _ => Err(ParseError::ParsingError)?,
     }

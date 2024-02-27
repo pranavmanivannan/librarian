@@ -1,44 +1,127 @@
-use lazy_static::lazy_static;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU16, AtomicUsize, Ordering};
 use std::sync::Arc;
+use lazy_static::lazy_static;
+
+use crate::data_packet::{DataPacket, MarketIncremental, Snapshot};
 
 lazy_static! {
-    pub static ref COUNTER: Arc<Counter> = Arc::new(Counter::new());
+    pub static ref THROUGHPUT: Arc<ThroughputMetric> = Arc::new(ThroughputMetric::new());
+    pub static ref PARSETIME: Arc<ParseMetric> = Arc::new(ParseMetric::new());
+    pub static ref PACKETSIZE: Arc<PacketMetric> = Arc::new(PacketMetric::new());
 }
 
-/// A simple counter struct containing an AtomicUsize. It is mainly used to keep track of the number of messages
-/// ingested by all the buffers.
-#[derive(Debug)]
-pub struct Counter {
+pub(crate) trait Metric {
+    fn calculate(&self) -> f64;
+    fn update(&self, value: u16);
+    fn log(&self);
+}
+
+pub struct ThroughputMetric {
     value: AtomicUsize,
 }
 
-impl Counter {
-    /// Simple constructor for the Counter struct.
-    ///
-    /// # Returns
-    /// A Counter struct with a value of 0.
+impl ThroughputMetric {
     pub fn new() -> Self {
-        Counter {
+        ThroughputMetric {
             value: AtomicUsize::new(0),
         }
     }
+}
 
-    /// Increments the counter by 1.
-    pub fn increment(&self) {
+impl Metric for ThroughputMetric {
+    fn calculate(&self) -> f64 {
+        (self.value.load(Ordering::SeqCst) as f64) / 10.0
+    }
+    
+    fn update(&self, _value: u16) {
         self.value.fetch_add(1, Ordering::SeqCst);
     }
-
-    /// Gets the value of the counter.
-    ///
-    /// # Returns
-    /// The counter's value as a usize.
-    pub fn get_value(&self) -> usize {
-        self.value.load(Ordering::SeqCst)
-    }
-
-    /// Resets the value of the counter to 0.
-    pub fn reset(&self) {
+    
+    fn log(&self) {
+        log::info!("throughput: {:?}", self.calculate());
         self.value.store(0, Ordering::SeqCst);
+    }
+}
+
+pub struct ParseMetric {
+    value: AtomicU16,
+    count: AtomicU16,
+}
+
+impl ParseMetric {
+    pub fn new() -> Self {
+        ParseMetric {
+            value: AtomicU16::new(0),
+            count: AtomicU16::new(0),
+        }
+    }
+}
+
+impl Metric for ParseMetric {
+    fn calculate(&self) -> f64 {
+        (self.value.load(Ordering::SeqCst) as f64) / (self.count.load(Ordering::SeqCst) as f64)
+    }
+    
+    fn update(&self, value: u16) {
+        self.value.fetch_add(value, Ordering::SeqCst);
+        self.count.fetch_add(1, Ordering::SeqCst);
+    }
+    
+    fn log(&self) {
+        log::info!("Average Parse Time: {:?}", self.calculate());
+        self.value.store(0, Ordering::SeqCst);
+        self.count.store(0, Ordering::SeqCst);
+    }
+}
+
+
+pub struct PacketMetric {
+    value: AtomicU16,
+    count: AtomicU16,
+}
+
+impl PacketMetric {
+    pub fn new() -> Self {
+        PacketMetric {
+            value: AtomicU16::new(0),
+            count: AtomicU16::new(0),
+        }
+    }
+}
+
+impl Metric for PacketMetric {
+    fn calculate(&self) -> f64 {
+        (self.value.load(Ordering::SeqCst) as f64) / (self.count.load(Ordering::SeqCst) as f64)
+    }
+    
+    fn update(&self, value: u16) {
+        self.value.fetch_add(value, Ordering::SeqCst);
+        self.count.fetch_add(1, Ordering::SeqCst);
+    }
+    
+    fn log(&self) {
+        log::info!("Average Packet Size: {:?}", self.calculate());
+        self.value.store(0, Ordering::SeqCst);
+        self.count.store(0, Ordering::SeqCst);
+    }
+}
+
+pub fn calculate_data_packet_size(packet: &DataPacket) -> usize {
+    match packet {
+        DataPacket::MI(mi) => {
+            let mut size = std::mem::size_of::<MarketIncremental>();
+            size += mi.symbol_pair.len();
+            size += mi.asks.len() * std::mem::size_of::<(f32, f32)>();
+            size += mi.bids.len() * std::mem::size_of::<(f32, f32)>();
+            size
+        }
+        DataPacket::ST(st) => {
+            let mut size = std::mem::size_of::<Snapshot>();
+            size += st.symbol_pair.len();
+            size += st.asks.len() * std::mem::size_of::<(f32, f32)>();
+            size += st.bids.len() * std::mem::size_of::<(f32, f32)>();
+            size
+        }
+        DataPacket::Ping(_) => std::mem::size_of::<String>(),
     }
 }

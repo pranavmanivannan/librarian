@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use crate::{buffer::Buffer, data_packet::DataPacket, stats::Counter};
+use crate::{buffer::Buffer, data_packet::DataPacket, stats::{Metric, ParseMetric, ThroughputMetric, PacketMetric}};
 
 /// Continuously polls a receiver for DataPackets. If there is a DataPacket, it will send
 /// it to the buffer.
@@ -17,19 +17,12 @@ pub async fn storage_loop(mut buffer: Buffer, mut receiver: UnboundedReceiver<Da
     }
 }
 
-/// Runs a background task that gets the number of messages ingested into a buffer every 10 seconds to calculate
-/// throughput and logs it to a file.
-///
-/// Arguments
-/// * `counter` - A reference to an Arc<Counter> used to keep track of the number of messages ingested.
-pub async fn stats_loop(counter: &Arc<Counter>) {
+pub async fn stats_loop(counter: &Arc<ThroughputMetric>, parse_timer: &Arc<ParseMetric>, packet_size: &Arc<PacketMetric>) {
+    let time = 10;
     loop {
-        let count: f64 = counter.get_value() as f64;
-        counter.reset();
-        log::info!(
-            "Messages ingested per second (throughput): {:?}",
-            count / 10.0
-        );
-        tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+        counter.log();
+        parse_timer.log();
+        packet_size.log();
+        tokio::time::sleep(tokio::time::Duration::from_secs(time)).await;
     }
 }

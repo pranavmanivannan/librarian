@@ -1,6 +1,6 @@
 use crate::{
     data_packet::DataPacket,
-    error::{ParseError, SymbolError},
+    error::{ParseError, SymbolError}, stats::{Metric, PARSETIME, THROUGHPUT},
 };
 use async_trait::async_trait;
 use futures_util::{
@@ -8,7 +8,7 @@ use futures_util::{
     SinkExt, StreamExt,
 };
 use serde_json::Value;
-use tokio::{net::TcpStream, sync::mpsc::UnboundedSender, task::JoinHandle};
+use tokio::{net::TcpStream, sync::mpsc::UnboundedSender, task::JoinHandle, time::Instant};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use tungstenite::{Error, Message};
 
@@ -48,6 +48,7 @@ pub trait Listener: Send + Sync {
                         log::info!("{} - Websocket connection closed!", Self::exchange_name());
                         break;
                     }
+                    let start = Instant::now();
                     let data_packet = Self::Parser::parse(message);
                     if let Ok(data_packet) = data_packet {
                         match data_packet {
@@ -58,7 +59,10 @@ pub trait Listener: Send + Sync {
                                 let _ = sender_clone.send(data_packet);
                             }
                         }
+                        THROUGHPUT.update(1);
                     }
+                    let elapsed = start.elapsed().subsec_nanos() as u16;
+                    PARSETIME.update(elapsed);
                 }
             }
         })

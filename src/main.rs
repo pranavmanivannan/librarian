@@ -1,5 +1,3 @@
-use crate::stats::COUNTER;
-use background::stats_loop;
 use exchanges::{
     binance_exchange::BinanceExchange,
     bybit_exchange::ByBitExchange,
@@ -13,6 +11,8 @@ use log4rs::{
     encode::pattern::PatternEncoder,
     Config,
 };
+use stats::{PACKETSIZE, PARSETIME, THROUGHPUT};
+use background::stats_loop;
 
 mod background;
 mod buffer;
@@ -39,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bybit = ByBitExchange::build("ByBit").await;
     let huobi = HuobiExchange::build("Huobi").await;
     let binance = BinanceExchange::build("Binance").await;
-    stats_loop(&COUNTER).await;
+    stats_loop(&THROUGHPUT, &PARSETIME, &PACKETSIZE).await;
 
     for exchange in [bybit, huobi, binance] {
         match exchange {

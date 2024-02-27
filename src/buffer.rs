@@ -1,4 +1,4 @@
-use crate::{background::storage_loop, data_packet, error::DBError, stats::COUNTER};
+use crate::{background::storage_loop, data_packet, error::DBError, stats::{calculate_data_packet_size, Metric, PACKETSIZE}};
 use data_packet::DataPacket;
 use dotenv::dotenv;
 use reqwest::{self};
@@ -74,6 +74,7 @@ impl Buffer {
     /// # Returns
     /// A Result with an empty Ok or a DBError if the DataPacket couldn't be pushed.
     pub async fn ingest(&mut self, data_packet: DataPacket) -> Result<(), DBError> {
+        PACKETSIZE.update(calculate_data_packet_size(&data_packet) as u16);
         match &data_packet {
             DataPacket::MI(msg) => {
                 let asks = serde_json::to_string(&msg.asks).map_err(DBError::JsonError)?;
@@ -83,7 +84,6 @@ impl Buffer {
                     msg.symbol_pair, asks, bids, msg.cur_seq, msg.prev_seq, msg.timestamp
                 );
                 self.incrementals.push(message);
-                COUNTER.increment();
                 if self.incrementals.len() >= self.capacity {
                     self.push_to_influx(DataType::MI).await?;
                     self.incrementals.clear();
@@ -98,7 +98,6 @@ impl Buffer {
                     msg.symbol_pair, asks, bids, msg.cur_seq, msg.prev_seq, msg.timestamp
                 );
                 self.snapshots.push(message);
-                COUNTER.increment();
                 if self.snapshots.len() >= self.capacity {
                     self.push_to_influx(DataType::ST).await?;
                     self.snapshots.clear();

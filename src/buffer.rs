@@ -1,6 +1,7 @@
-use crate::{background::storage_loop, data_packet, error::DBError, stats::{calculate_data_packet_size, Metric, MetricManager}};
+use crate::{background::storage_loop, data_packet, error::DBError, stats::{Metric, MetricManager}};
 use data_packet::DataPacket;
 use dotenv::dotenv;
+use get_size::GetSize;
 use reqwest::{self};
 use reqwest_middleware::ClientBuilder;
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
@@ -77,9 +78,9 @@ impl Buffer {
     /// # Returns
     /// A Result with an empty Ok or a DBError if the DataPacket couldn't be pushed.
     pub async fn ingest(&mut self, data_packet: DataPacket) -> Result<(), DBError> {
-        self.metric_manager.packetsize.update(calculate_data_packet_size(&data_packet) as u16);
         match &data_packet {
             DataPacket::MI(msg) => {
+                self.metric_manager.packetsize.update(msg.get_size() as u16);
                 let asks = serde_json::to_string(&msg.asks).map_err(DBError::JsonError)?;
                 let bids = serde_json::to_string(&msg.bids).map_err(DBError::JsonError)?;
                 let message = format!(
@@ -94,6 +95,7 @@ impl Buffer {
                 Ok(())
             }
             DataPacket::ST(msg) => {
+                self.metric_manager.packetsize.update(msg.get_size() as u16);
                 let asks = serde_json::to_string(&msg.asks).map_err(DBError::JsonError)?;
                 let bids = serde_json::to_string(&msg.bids).map_err(DBError::JsonError)?;
                 let message = format!(
@@ -107,7 +109,10 @@ impl Buffer {
                 }
                 Ok(())
             }
-            DataPacket::Ping(_) => Ok(()),
+            DataPacket::Ping(msg) => {
+                self.metric_manager.packetsize.update(msg.get_size() as u16);
+                Ok(())
+            },
         }
     }
 

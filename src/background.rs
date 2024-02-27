@@ -19,7 +19,7 @@ pub async fn storage_loop(mut buffer: Buffer, mut receiver: UnboundedReceiver<Da
 }
 
 pub async fn stats_loop(metrics: Arc<MetricManager>) {
-    let time = 10;
+    let time = 30;
     loop {
         metrics.throughput.log();
         metrics.parsetime.log();

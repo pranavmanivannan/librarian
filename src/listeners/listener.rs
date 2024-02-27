@@ -64,7 +64,7 @@ pub trait Listener: Send + Sync {
                         }
                         metric_manager.throughput.update(1);
                     }
-                    let elapsed = start.elapsed().subsec_nanos() as u16;
+                    let elapsed = start.elapsed().subsec_micros() as u16;
                     metric_manager.parsetime.update(elapsed);
                 }
             }

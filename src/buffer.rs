@@ -1,10 +1,10 @@
-use crate::{background::storage_loop, data_packet, error::DBError, stats::{calculate_data_packet_size, Metric, PACKETSIZE}};
+use crate::{background::storage_loop, data_packet, error::DBError, stats::{calculate_data_packet_size, Metric, MetricManager}};
 use data_packet::DataPacket;
 use dotenv::dotenv;
 use reqwest::{self};
 use reqwest_middleware::ClientBuilder;
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
-use std::env;
+use std::{env, sync::Arc};
 use tokio::{sync::mpsc::UnboundedReceiver, task::JoinHandle};
 
 const ORGANIZATION: &str = "Quant Dev";
@@ -16,6 +16,7 @@ pub struct Buffer {
     incrementals: Vec<String>,
     bucket: String,
     capacity: usize,
+    metric_manager: Arc<MetricManager>,
 }
 
 /// An implementation of the Buffer struct which allows Buffers
@@ -28,7 +29,7 @@ impl Buffer {
     ///
     /// # Returns
     /// A `Buffer` struct to be used with a corresponding listener.
-    pub fn new(bucket_name: &str, capacity: usize) -> Buffer {
+    pub fn new(bucket_name: &str, capacity: usize, metric_manager: Arc<MetricManager>) -> Buffer {
         let retry_policy = ExponentialBackoff::builder().build_with_max_retries(5);
         let retry_middleware = RetryTransientMiddleware::new_with_policy(retry_policy);
         let reqwest_client = ClientBuilder::new(reqwest::Client::new())
@@ -45,6 +46,7 @@ impl Buffer {
             incrementals: Vec::with_capacity(capacity),
             bucket: bucket_name.to_string(),
             capacity,
+            metric_manager,
         }
     }
 
@@ -61,8 +63,9 @@ impl Buffer {
         bucket_name: &str,
         capacity: usize,
         receiver: UnboundedReceiver<DataPacket>,
+        metric_manager: Arc<MetricManager>,
     ) -> JoinHandle<()> {
-        let buffer = Buffer::new(bucket_name, capacity);
+        let buffer = Buffer::new(bucket_name, capacity, metric_manager);
         tokio::spawn(storage_loop(buffer, receiver))
     }
 
@@ -74,7 +77,7 @@ impl Buffer {
     /// # Returns
     /// A Result with an empty Ok or a DBError if the DataPacket couldn't be pushed.
     pub async fn ingest(&mut self, data_packet: DataPacket) -> Result<(), DBError> {
-        PACKETSIZE.update(calculate_data_packet_size(&data_packet) as u16);
+        self.metric_manager.packetsize.update(calculate_data_packet_size(&data_packet) as u16);
         match &data_packet {
             DataPacket::MI(msg) => {
                 let asks = serde_json::to_string(&msg.asks).map_err(DBError::JsonError)?;

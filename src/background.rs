@@ -1,7 +1,8 @@
 use std::sync::Arc;
+
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use crate::{buffer::Buffer, data_packet::DataPacket, stats::{Metric, ParseMetric, ThroughputMetric, PacketMetric}};
+use crate::{buffer::Buffer, data_packet::DataPacket, stats::{Metric, MetricManager}};
 
 /// Continuously polls a receiver for DataPackets. If there is a DataPacket, it will send
 /// it to the buffer.
@@ -17,12 +18,12 @@ pub async fn storage_loop(mut buffer: Buffer, mut receiver: UnboundedReceiver<Da
     }
 }
 
-pub async fn stats_loop(counter: &Arc<ThroughputMetric>, parse_timer: &Arc<ParseMetric>, packet_size: &Arc<PacketMetric>) {
+pub async fn stats_loop(metrics: Arc<MetricManager>) {
     let time = 10;
     loop {
-        counter.log();
-        parse_timer.log();
-        packet_size.log();
+        metrics.throughput.log();
+        metrics.parsetime.log();
+        metrics.packetsize.log();
         tokio::time::sleep(tokio::time::Duration::from_secs(time)).await;
     }
 }

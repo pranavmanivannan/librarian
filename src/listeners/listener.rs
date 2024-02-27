@@ -1,6 +1,8 @@
+use std::sync::Arc;
+
 use crate::{
     data_packet::DataPacket,
-    error::{ParseError, SymbolError}, stats::{Metric, PARSETIME, THROUGHPUT},
+    error::{ParseError, SymbolError}, stats::{Metric, MetricManager},
 };
 use async_trait::async_trait;
 use futures_util::{
@@ -28,6 +30,7 @@ pub trait Listener: Send + Sync {
     /// A JoinHandle to be awaited on within a tokio::task.
     async fn listen(
         sender: UnboundedSender<DataPacket>,
+        metric_manager: Arc<MetricManager>,
     ) -> JoinHandle<Result<(), tungstenite::Error>> {
         let sender_clone = sender.clone();
         tokio::spawn(async move {
@@ -59,10 +62,10 @@ pub trait Listener: Send + Sync {
                                 let _ = sender_clone.send(data_packet);
                             }
                         }
-                        THROUGHPUT.update(1);
+                        metric_manager.throughput.update(1);
                     }
                     let elapsed = start.elapsed().subsec_nanos() as u16;
-                    PARSETIME.update(elapsed);
+                    metric_manager.parsetime.update(elapsed);
                 }
             }
         })

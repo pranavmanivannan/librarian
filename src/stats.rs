@@ -1,13 +1,21 @@
 use std::sync::atomic::{AtomicU16, AtomicUsize, Ordering};
-use std::sync::Arc;
-use lazy_static::lazy_static;
 
 use crate::data_packet::{DataPacket, MarketIncremental, Snapshot};
 
-lazy_static! {
-    pub static ref THROUGHPUT: Arc<ThroughputMetric> = Arc::new(ThroughputMetric::new());
-    pub static ref PARSETIME: Arc<ParseMetric> = Arc::new(ParseMetric::new());
-    pub static ref PACKETSIZE: Arc<PacketMetric> = Arc::new(PacketMetric::new());
+pub struct MetricManager {
+    pub throughput: ThroughputMetric,
+    pub parsetime: ParseMetric,
+    pub packetsize: PacketMetric,
+}
+
+impl MetricManager {
+    pub fn new() -> Self {
+        MetricManager {
+            throughput: ThroughputMetric::new(),
+            parsetime: ParseMetric::new(),
+            packetsize: PacketMetric::new(),
+        }
+    }
 }
 
 pub(crate) trait Metric {

@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use exchanges::{
     binance_exchange::BinanceExchange,
     bybit_exchange::ByBitExchange,
@@ -11,8 +12,8 @@ use log4rs::{
     encode::pattern::PatternEncoder,
     Config,
 };
-use stats::{PACKETSIZE, PARSETIME, THROUGHPUT};
 use background::stats_loop;
+use stats::MetricManager;
 
 mod background;
 mod buffer;
@@ -36,10 +37,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log4rs::init_config(config)?;
 
-    let bybit = ByBitExchange::build("ByBit").await;
-    let huobi = HuobiExchange::build("Huobi").await;
-    let binance = BinanceExchange::build("Binance").await;
-    stats_loop(&THROUGHPUT, &PARSETIME, &PACKETSIZE).await;
+    let metric_manager = Arc::new(MetricManager::new());
+    let bybit = ByBitExchange::build("ByBit", metric_manager.clone()).await;
+    let huobi = HuobiExchange::build("Huobi", metric_manager.clone()).await;
+    let binance = BinanceExchange::build("Binance", metric_manager.clone()).await;
+    stats_loop(metric_manager).await;
 
     for exchange in [bybit, huobi, binance] {
         match exchange {

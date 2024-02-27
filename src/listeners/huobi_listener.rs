@@ -154,6 +154,7 @@ impl Parser for HuobiParser {
     }
 }
 
+#[async_trait]
 impl SymbolHandler for HuobiSymbolHandler {
     /// Requests all tradeable symbols from Huobi's http endpoint and parses the response. It then creates a vector of
     /// strings that contain the both the market incremental and snapshot subscriptions, both of dpeth 20, for each

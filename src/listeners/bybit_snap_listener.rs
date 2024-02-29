@@ -1,7 +1,8 @@
-use super::{bybit_listener::{bybit_parser, ByBitListener, ByBitSymbolHandler}, listener::{Listener, Parser}};
-use crate::{
-    data_packet::DataPacket, error::ParseError,
+use super::{
+    bybit_listener::{bybit_parser, ByBitListener, ByBitSymbolHandler},
+    listener::{Listener, Parser},
 };
+use crate::{data_packet::DataPacket, error::ParseError};
 use async_trait::async_trait;
 use futures_util::stream::{SplitSink, SplitStream};
 use tokio::net::TcpStream;

@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use crate::{buffer::Buffer, error::SymbolError, listeners::listener::Listener, stats::MetricManager};
+use crate::{
+    buffer::Buffer, error::SymbolError, listeners::listener::Listener, stats::MetricManager,
+};
 use async_trait::async_trait;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -22,10 +24,20 @@ pub trait Exchange: Sized {
     ///
     /// # Returns
     /// A `TaskSet` enum which holds multiple `JoinHandle` tuples.
-    async fn build(exchange_name: &str, metric_manager: Arc<MetricManager>, cancellation_token: CancellationToken) -> TaskSet {
+    async fn build(
+        exchange_name: &str,
+        metric_manager: Arc<MetricManager>,
+        cancellation_token: CancellationToken,
+    ) -> TaskSet {
         let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
         let listener = Self::Listener::listen(sender, metric_manager.clone()).await;
-        let buffer = Buffer::create_task(exchange_name, 5000, receiver, metric_manager.clone(), cancellation_token);
+        let buffer = Buffer::create_task(
+            exchange_name,
+            5000,
+            receiver,
+            metric_manager.clone(),
+            cancellation_token,
+        );
 
         return TaskSet::Default(listener, buffer);
     }

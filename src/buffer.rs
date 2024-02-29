@@ -1,13 +1,18 @@
-use crate::{background::storage_loop, data_packet, error::DBError, stats::{Metric, MetricManager}};
+use crate::{
+    background::storage_loop,
+    data_packet,
+    error::DBError,
+    stats::{Metric, MetricManager},
+};
 use data_packet::DataPacket;
 use dotenv::dotenv;
 use get_size::GetSize;
 use reqwest::{self};
 use reqwest_middleware::ClientBuilder;
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
-use tokio_util::sync::CancellationToken;
 use std::{env, sync::Arc};
 use tokio::{sync::mpsc::UnboundedReceiver, task::JoinHandle};
+use tokio_util::sync::CancellationToken;
 
 const ORGANIZATION: &str = "Quant Dev";
 
@@ -114,7 +119,7 @@ impl Buffer {
             DataPacket::Ping(msg) => {
                 self.metric_manager.packetsize.update(msg.get_size() as u16);
                 Ok(())
-            },
+            }
         }
     }
 
@@ -175,7 +180,7 @@ impl Buffer {
         }
     }
 
-    pub async fn shutdown(&self) -> Result<(), DBError>{
+    pub async fn shutdown(&self) -> Result<(), DBError> {
         self.push_to_influx(DataType::MI).await?;
         self.push_to_influx(DataType::ST).await?;
         Ok(())

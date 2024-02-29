@@ -1,8 +1,7 @@
 use std::mem;
 
-use serde::Serialize;
 use get_size::GetSize;
-
+use serde::Serialize;
 
 /// The DataPacket Enum contains various structs. This allows for the `Parser` trait to parse a `Message` from any
 /// endpoint and return a singular data type that can be sent over a `channel`.

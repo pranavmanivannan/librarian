@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use crate::{
     data_packet::DataPacket,
-    error::{ParseError, SymbolError}, stats::{Metric, MetricManager},
+    error::{ParseError, SymbolError},
+    stats::{Metric, MetricManager},
 };
 use async_trait::async_trait;
 use futures_util::{

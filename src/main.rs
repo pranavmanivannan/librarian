@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use background::stats_loop;
 use exchanges::{
     binance_exchange::BinanceExchange,
     bybit_exchange::ByBitExchange,
@@ -12,8 +12,8 @@ use log4rs::{
     encode::pattern::PatternEncoder,
     Config,
 };
-use background::stats_loop;
 use stats::MetricManager;
+use std::sync::Arc;
 use tokio::signal;
 use tokio_util::sync::CancellationToken;
 
@@ -39,12 +39,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log4rs::init_config(config)?;
 
+    // Create a cancellation token to use to signal the tokio tasks to shutdown.
     let token = CancellationToken::new();
+    let token_clone = token.clone();
+
+    // Spawn a tokio task to listen for a ctrl-c to cancel the cancellation token.
+    tokio::spawn(async move {
+        match signal::ctrl_c().await {
+            Ok(_) => {
+                token.cancel();
+                println!("Shutting down...");
+            }
+            Err(e) => {
+                println!("Error: {}", e);
+            }
+        };
+    });
 
     let metric_manager = Arc::new(MetricManager::new());
-    let bybit = ByBitExchange::build("ByBit", metric_manager.clone(), token.clone()).await;
-    let huobi = HuobiExchange::build("Huobi", metric_manager.clone(), token.clone()).await;
-    let binance = BinanceExchange::build("Binance", metric_manager.clone(), token.clone()).await;
+    let bybit = ByBitExchange::build("ByBit", metric_manager.clone(), token_clone.clone()).await;
+    let huobi = HuobiExchange::build("Huobi", metric_manager.clone(), token_clone.clone()).await;
+    let binance =
+        BinanceExchange::build("Binance", metric_manager.clone(), token_clone.clone()).await;
     stats_loop(metric_manager).await;
 
     for exchange in [bybit, huobi, binance] {
@@ -58,15 +74,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let _ = match signal::ctrl_c().await {
-        Ok(_) => {
-            token.cancel();
-            println!("Shutting down...");
-        }
-        Err(e) => {
-            println!("Error: {}", e);
-        }
-    };
+    // Anything past this point must wait for all tokio tasks to complete due to the tokio::join!() above.
 
     Ok(())
 }

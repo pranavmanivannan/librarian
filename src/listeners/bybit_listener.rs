@@ -131,7 +131,11 @@ impl SymbolHandler for ByBitSymbolHandler {
     }
 }
 
-pub fn bybit_parser(input_data: &Value, parsed_data: &&Value, data_type:&str) -> Result<DataPacket, ParseError> {
+pub fn bybit_parser(
+    input_data: &Value,
+    parsed_data: &&Value,
+    data_type: &str,
+) -> Result<DataPacket, ParseError> {
     let symbol_pair = parsed_data["s"]
         .as_str()
         .ok_or(ParseError::ParsingError)?

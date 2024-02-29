@@ -5,6 +5,7 @@ use get_size::GetSize;
 use reqwest::{self};
 use reqwest_middleware::ClientBuilder;
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
+use tokio_util::sync::CancellationToken;
 use std::{env, sync::Arc};
 use tokio::{sync::mpsc::UnboundedReceiver, task::JoinHandle};
 
@@ -65,9 +66,10 @@ impl Buffer {
         capacity: usize,
         receiver: UnboundedReceiver<DataPacket>,
         metric_manager: Arc<MetricManager>,
+        cancellation_token: CancellationToken,
     ) -> JoinHandle<()> {
         let buffer = Buffer::new(bucket_name, capacity, metric_manager);
-        tokio::spawn(storage_loop(buffer, receiver))
+        tokio::spawn(storage_loop(buffer, receiver, cancellation_token))
     }
 
     /// A separate function that sorts datapackets by type and pushes it to buffer.
@@ -171,6 +173,12 @@ impl Buffer {
                 Err(DBError::ReqwestMiddlewareError(e))
             }
         }
+    }
+
+    pub async fn shutdown(&self) -> Result<(), DBError>{
+        self.push_to_influx(DataType::MI).await?;
+        self.push_to_influx(DataType::ST).await?;
+        Ok(())
     }
 }
 

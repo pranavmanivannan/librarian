@@ -3,6 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures_util::future::join_all;
 use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     buffer::Buffer,
@@ -34,10 +35,10 @@ impl Exchange for BinanceExchange {
     /// A `TaskSet` containing a `JoinHandle` for the listener, buffer, and an additional `JoinHandle` for the HTTP
     /// listener. The HTTP listener is used to retrieve orderbook snapshots as Binance does not send them through the
     /// websocket stream.
-    async fn build(exchange_name: &str, metric_manager: Arc<MetricManager>) -> TaskSet {
+    async fn build(exchange_name: &str, metric_manager: Arc<MetricManager>, cancellation_token: CancellationToken) -> TaskSet {
         let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
         let listener = BinanceListener::listen(sender.clone(), metric_manager.clone()).await;
-        let buffer = Buffer::create_task(exchange_name, 500, receiver, metric_manager.clone());
+        let buffer = Buffer::create_task(exchange_name, 500, receiver, metric_manager.clone(), cancellation_token);
 
         let http_listener: JoinHandle<Result<(), SymbolError>> = tokio::spawn(async move {
             loop {

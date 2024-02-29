@@ -14,6 +14,8 @@ use log4rs::{
 };
 use background::stats_loop;
 use stats::MetricManager;
+use tokio::signal;
+use tokio_util::sync::CancellationToken;
 
 mod background;
 mod buffer;
@@ -37,10 +39,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log4rs::init_config(config)?;
 
+    let token = CancellationToken::new();
+
     let metric_manager = Arc::new(MetricManager::new());
-    let bybit = ByBitExchange::build("ByBit", metric_manager.clone()).await;
-    let huobi = HuobiExchange::build("Huobi", metric_manager.clone()).await;
-    let binance = BinanceExchange::build("Binance", metric_manager.clone()).await;
+    let bybit = ByBitExchange::build("ByBit", metric_manager.clone(), token.clone()).await;
+    let huobi = HuobiExchange::build("Huobi", metric_manager.clone(), token.clone()).await;
+    let binance = BinanceExchange::build("Binance", metric_manager.clone(), token.clone()).await;
     stats_loop(metric_manager).await;
 
     for exchange in [bybit, huobi, binance] {
@@ -53,6 +57,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
+
+    let _ = match signal::ctrl_c().await {
+        Ok(_) => {
+            token.cancel();
+            println!("Shutting down...");
+        }
+        Err(e) => {
+            println!("Error: {}", e);
+        }
+    };
 
     Ok(())
 }

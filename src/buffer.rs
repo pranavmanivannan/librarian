@@ -71,10 +71,10 @@ impl Buffer {
         capacity: usize,
         receiver: UnboundedReceiver<DataPacket>,
         metric_manager: Arc<MetricManager>,
-        cancellation_token: CancellationToken,
+        cancel_token: CancellationToken,
     ) -> JoinHandle<()> {
         let buffer = Buffer::new(bucket_name, capacity, metric_manager);
-        tokio::spawn(storage_loop(buffer, receiver, cancellation_token))
+        tokio::spawn(storage_loop(buffer, receiver, cancel_token))
     }
 
     /// A separate function that sorts datapackets by type and pushes it to buffer.

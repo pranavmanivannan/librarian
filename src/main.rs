@@ -48,10 +48,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match signal::ctrl_c().await {
             Ok(_) => {
                 token.cancel();
-                println!("Shutting down...");
+                log::info!("Shutting down...");
             }
             Err(e) => {
-                println!("Error: {}", e);
+                log::error!("Error: {}", e);
             }
         };
     });
@@ -61,7 +61,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let huobi = HuobiExchange::build("Huobi", metric_manager.clone(), token_clone.clone()).await;
     let binance =
         BinanceExchange::build("Binance", metric_manager.clone(), token_clone.clone()).await;
-    stats_loop(metric_manager).await;
+    stats_loop(metric_manager, token_clone.clone()).await;
 
     for exchange in [bybit, huobi, binance] {
         match exchange {

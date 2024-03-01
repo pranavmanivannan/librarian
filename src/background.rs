@@ -18,13 +18,13 @@ use crate::{
 pub async fn storage_loop(
     mut buffer: Buffer,
     mut receiver: UnboundedReceiver<DataPacket>,
-    cancellation_token: CancellationToken,
+    cancel_token: CancellationToken,
 ) {
     loop {
         // if let Some(data_packet) = receiver.recv().await {
         //     let _ = buffer.ingest(data_packet).await;
         // }
-        // if cancellation_token.is_cancelled() {
+        // if cancel_token.is_cancelled() {
         //     let _ = buffer.shutdown().await;
         //     println!("Buffers flushed!");
         //     break;
@@ -34,21 +34,31 @@ pub async fn storage_loop(
                 Some(msg) => {let _ = buffer.ingest(msg).await;},
                 None => break,
             },
-            () = cancellation_token.cancelled() => {
+            () = cancel_token.cancelled() => {
                 let _ = buffer.shutdown().await;
-                println!("Buffers flushed!");
+                log::info!("Buffers flushed for shutdown!");
                 break;
             }
         }
     }
 }
 
-pub async fn stats_loop(metrics: Arc<MetricManager>) {
+pub async fn stats_loop(metrics: Arc<MetricManager>, cancel_token: CancellationToken) {
     let time = 30;
-    loop {
-        metrics.throughput.log();
-        metrics.parsetime.log();
-        metrics.packetsize.log();
-        tokio::time::sleep(tokio::time::Duration::from_secs(time)).await;
+    tokio::select! {
+        _ = tokio::time::sleep(tokio::time::Duration::from_secs(time)) => {
+            metrics.throughput.log();
+            metrics.parsetime.log();
+            metrics.packetsize.log();
+        },
+        () = cancel_token.cancelled() => {
+            log::info!("Stats loop cancelled!");
+        }
     }
+    // loop {
+    //     metrics.throughput.log();
+    //     metrics.parsetime.log();
+    //     metrics.packetsize.log();
+    //     tokio::time::sleep(tokio::time::Duration::from_secs(time)).await;
+    // }
 }

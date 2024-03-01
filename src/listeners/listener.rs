@@ -13,6 +13,7 @@ use futures_util::{
 use serde_json::Value;
 use tokio::{net::TcpStream, sync::mpsc::UnboundedSender, task::JoinHandle, time::Instant};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
+use tokio_util::sync::CancellationToken;
 use tungstenite::{Error, Message};
 
 /// The main trait of the data storage system. It holds associated types to a SymbolHandler
@@ -32,10 +33,11 @@ pub trait Listener: Send + Sync {
     async fn listen(
         sender: UnboundedSender<DataPacket>,
         metric_manager: Arc<MetricManager>,
+        cancel_token: CancellationToken,
     ) -> JoinHandle<Result<(), tungstenite::Error>> {
         let sender_clone = sender.clone();
         tokio::spawn(async move {
-            loop {
+            let listener = async {loop {
                 let (mut write, mut read) = match Self::connect().await {
                     Ok(stream_tuple) => stream_tuple,
                     Err(_e) => {
@@ -68,6 +70,17 @@ pub trait Listener: Send + Sync {
                     let elapsed = start.elapsed().subsec_micros() as u16;
                     metric_manager.parsetime.update(elapsed);
                 }
+            }};
+
+            tokio::select! {
+                _ = listener => {
+                    log::info!("{} - Listener exited!", Self::exchange_name());
+                    Ok(())
+                },
+                _ = cancel_token.cancelled() => {
+                    log::info!("{} - Listener cancelled!", Self::exchange_name());
+                    Ok(())
+                },
             }
         })
     }

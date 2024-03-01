@@ -34,7 +34,9 @@ impl Exchange for ByBitExchange {
         cancel_token: CancellationToken,
     ) -> TaskSet {
         let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
-        let listener = ByBitListener::listen(sender.clone(), metric_manager.clone(), cancel_token.clone()).await;
+        let listener =
+            ByBitListener::listen(sender.clone(), metric_manager.clone(), cancel_token.clone())
+                .await;
         let buffer = Buffer::create_task(
             exchange_name,
             500,
@@ -44,12 +46,18 @@ impl Exchange for ByBitExchange {
         );
 
         let snapshot_listener = tokio::spawn(async move {
-            let snap_listener = async {loop {
-                let snap_listener =
-                    ByBitSnapshotListener::listen(sender.clone(), metric_manager.clone(), cancel_token.clone()).await;
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-                drop(snap_listener);
-            }};
+            let snap_listener = async {
+                loop {
+                    let snap_listener = ByBitSnapshotListener::listen(
+                        sender.clone(),
+                        metric_manager.clone(),
+                        cancel_token.clone(),
+                    )
+                    .await;
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                    drop(snap_listener);
+                }
+            };
 
             tokio::select! {
                 _ = snap_listener => {

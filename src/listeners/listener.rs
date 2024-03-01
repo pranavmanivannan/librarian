@@ -37,40 +37,42 @@ pub trait Listener: Send + Sync {
     ) -> JoinHandle<Result<(), tungstenite::Error>> {
         let sender_clone = sender.clone();
         tokio::spawn(async move {
-            let listener = async {loop {
-                let (mut write, mut read) = match Self::connect().await {
-                    Ok(stream_tuple) => stream_tuple,
-                    Err(_e) => {
-                        log::error!("{} - Reconnecting...", Self::exchange_name());
-                        continue;
-                    }
-                };
-                log::info!(
-                    "{} - Websocket connection established!",
-                    Self::exchange_name()
-                );
-                while let Some(Ok(message)) = read.next().await {
-                    if let Message::Close(_) = message {
-                        log::info!("{} - Websocket connection closed!", Self::exchange_name());
-                        break;
-                    }
-                    let start = Instant::now();
-                    let data_packet = Self::Parser::parse(message);
-                    if let Ok(data_packet) = data_packet {
-                        match data_packet {
-                            DataPacket::Ping(pong) => {
-                                let _ = write.send(Message::Text(pong)).await;
-                            }
-                            _ => {
-                                let _ = sender_clone.send(data_packet);
-                            }
+            let listener = async {
+                loop {
+                    let (mut write, mut read) = match Self::connect().await {
+                        Ok(stream_tuple) => stream_tuple,
+                        Err(_e) => {
+                            log::error!("{} - Reconnecting...", Self::exchange_name());
+                            continue;
                         }
-                        metric_manager.throughput.update(1);
+                    };
+                    log::info!(
+                        "{} - Websocket connection established!",
+                        Self::exchange_name()
+                    );
+                    while let Some(Ok(message)) = read.next().await {
+                        if let Message::Close(_) = message {
+                            log::info!("{} - Websocket connection closed!", Self::exchange_name());
+                            break;
+                        }
+                        let start = Instant::now();
+                        let data_packet = Self::Parser::parse(message);
+                        if let Ok(data_packet) = data_packet {
+                            match data_packet {
+                                DataPacket::Ping(pong) => {
+                                    let _ = write.send(Message::Text(pong)).await;
+                                }
+                                _ => {
+                                    let _ = sender_clone.send(data_packet);
+                                }
+                            }
+                            metric_manager.throughput.update(1);
+                        }
+                        let elapsed = start.elapsed().subsec_micros() as u16;
+                        metric_manager.parsetime.update(elapsed);
                     }
-                    let elapsed = start.elapsed().subsec_micros() as u16;
-                    metric_manager.parsetime.update(elapsed);
                 }
-            }};
+            };
 
             tokio::select! {
                 _ = listener => {

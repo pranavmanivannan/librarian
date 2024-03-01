@@ -166,7 +166,7 @@ pub fn bybit_parser(
                 timestamp,
             };
 
-            return Ok(DataPacket::MI(enum_creator));
+            Ok(DataPacket::MI(enum_creator))
         }
         "snapshot" => {
             let enum_creator = Snapshot {
@@ -178,7 +178,7 @@ pub fn bybit_parser(
                 timestamp,
             };
 
-            return Ok(DataPacket::ST(enum_creator));
+            Ok(DataPacket::ST(enum_creator))
         }
         _ => Err(ParseError::ParsingError)?,
     }

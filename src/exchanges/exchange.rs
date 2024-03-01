@@ -30,7 +30,8 @@ pub trait Exchange: Sized {
         cancel_token: CancellationToken,
     ) -> TaskSet {
         let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
-        let listener = Self::Listener::listen(sender, metric_manager.clone(), cancel_token.clone()).await;
+        let listener =
+            Self::Listener::listen(sender, metric_manager.clone(), cancel_token.clone()).await;
         let buffer = Buffer::create_task(
             exchange_name,
             5000,

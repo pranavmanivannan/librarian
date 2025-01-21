@@ -1,3 +1,6 @@
+use std::mem;
+
+use get_size::GetSize;
 use serde::Serialize;
 
 /// The DataPacket Enum contains various structs. This allows for the `Parser` trait to parse a `Message` from any
@@ -29,6 +32,19 @@ pub struct MarketIncremental {
     pub timestamp: i64,
 }
 
+impl GetSize for MarketIncremental {
+    fn get_heap_size(&self) -> usize {
+        let symbol_pair_size = self.symbol_pair.capacity();
+        let asks_size = self.asks.capacity() * mem::size_of::<(f32, f32)>();
+        let bids_size = self.bids.capacity() * mem::size_of::<(f32, f32)>();
+        symbol_pair_size + asks_size + bids_size
+    }
+
+    fn get_size(&self) -> usize {
+        self.get_heap_size()
+    }
+}
+
 /// Snapshot struct used to serialize data from orderbook snapshot endpoints on exchanges. While the `MarketIncremental`
 /// and `Snapshot` structs are similar, we use the enum variants in `DataPacket` to differentiate between the two before
 /// sending it to the proper buffer. This allows for reduced memory overhead in InfluxDB compared to using a flag
@@ -47,4 +63,17 @@ pub struct Snapshot {
     pub prev_seq: i64,
     /// Timestamp at which the exchange generated this orderbook snapshot.
     pub timestamp: i64,
+}
+
+impl GetSize for Snapshot {
+    fn get_heap_size(&self) -> usize {
+        let symbol_pair_size = self.symbol_pair.capacity();
+        let asks_size = self.asks.capacity() * mem::size_of::<(f32, f32)>();
+        let bids_size = self.bids.capacity() * mem::size_of::<(f32, f32)>();
+        symbol_pair_size + asks_size + bids_size
+    }
+
+    fn get_size(&self) -> usize {
+        self.get_heap_size()
+    }
 }

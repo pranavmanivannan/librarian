@@ -1,6 +1,9 @@
+use std::sync::Arc;
+
 use crate::{
     data_packet::DataPacket,
     error::{ParseError, SymbolError},
+    stats::{Metric, MetricManager},
 };
 use async_trait::async_trait;
 use futures_util::{
@@ -8,8 +11,9 @@ use futures_util::{
     SinkExt, StreamExt,
 };
 use serde_json::Value;
-use tokio::{net::TcpStream, sync::mpsc::UnboundedSender, task::JoinHandle};
+use tokio::{net::TcpStream, sync::mpsc::UnboundedSender, task::JoinHandle, time::Instant};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
+use tokio_util::sync::CancellationToken;
 use tungstenite::{Error, Message};
 
 /// The main trait of the data storage system. It holds associated types to a SymbolHandler
@@ -28,38 +32,57 @@ pub trait Listener: Send + Sync {
     /// A JoinHandle to be awaited on within a tokio::task.
     async fn listen(
         sender: UnboundedSender<DataPacket>,
+        metric_manager: Arc<MetricManager>,
+        cancel_token: CancellationToken,
     ) -> JoinHandle<Result<(), tungstenite::Error>> {
         let sender_clone = sender.clone();
         tokio::spawn(async move {
-            loop {
-                let (mut write, mut read) = match Self::connect().await {
-                    Ok(stream_tuple) => stream_tuple,
-                    Err(_e) => {
-                        log::error!("{} - Reconnecting...", Self::exchange_name());
-                        continue;
-                    }
-                };
-                log::info!(
-                    "{} - Websocket connection established!",
-                    Self::exchange_name()
-                );
-                while let Some(Ok(message)) = read.next().await {
-                    if let Message::Close(_) = message {
-                        log::info!("{} - Websocket connection closed!", Self::exchange_name());
-                        break;
-                    }
-                    let data_packet = Self::Parser::parse(message);
-                    if let Ok(data_packet) = data_packet {
-                        match data_packet {
-                            DataPacket::Ping(pong) => {
-                                let _ = write.send(Message::Text(pong)).await;
-                            }
-                            _ => {
-                                let _ = sender_clone.send(data_packet);
-                            }
+            let listener = async {
+                loop {
+                    let (mut write, mut read) = match Self::connect().await {
+                        Ok(stream_tuple) => stream_tuple,
+                        Err(_e) => {
+                            log::error!("{} - Reconnecting...", Self::exchange_name());
+                            continue;
                         }
+                    };
+                    log::info!(
+                        "{} - Websocket connection established!",
+                        Self::exchange_name()
+                    );
+                    while let Some(Ok(message)) = read.next().await {
+                        if let Message::Close(_) = message {
+                            log::info!("{} - Websocket connection closed!", Self::exchange_name());
+                            break;
+                        }
+                        let start = Instant::now();
+                        let data_packet = Self::Parser::parse(message);
+                        if let Ok(data_packet) = data_packet {
+                            match data_packet {
+                                DataPacket::Ping(pong) => {
+                                    let _ = write.send(Message::Text(pong)).await;
+                                }
+                                _ => {
+                                    let _ = sender_clone.send(data_packet);
+                                }
+                            }
+                            metric_manager.throughput.update(1);
+                        }
+                        let elapsed = start.elapsed().subsec_micros() as u16;
+                        metric_manager.parsetime.update(elapsed);
                     }
                 }
+            };
+
+            tokio::select! {
+                _ = listener => {
+                    log::info!("{} - Listener exited!", Self::exchange_name());
+                    Ok(())
+                },
+                _ = cancel_token.cancelled() => {
+                    log::info!("{} - Listener cancelled!", Self::exchange_name());
+                    Ok(())
+                },
             }
         })
     }

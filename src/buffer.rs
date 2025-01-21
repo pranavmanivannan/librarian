@@ -1,11 +1,18 @@
-use crate::{background::storage_loop, data_packet, error::DBError};
+use crate::{
+    background::storage_loop,
+    data_packet,
+    error::DBError,
+    stats::{Metric, MetricManager},
+};
 use data_packet::DataPacket;
 use dotenv::dotenv;
+use get_size::GetSize;
 use reqwest::{self};
 use reqwest_middleware::ClientBuilder;
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
-use std::env;
+use std::{env, sync::Arc};
 use tokio::{sync::mpsc::UnboundedReceiver, task::JoinHandle};
+use tokio_util::sync::CancellationToken;
 
 const ORGANIZATION: &str = "Quant Dev";
 
@@ -16,6 +23,7 @@ pub struct Buffer {
     incrementals: Vec<String>,
     bucket: String,
     capacity: usize,
+    metric_manager: Arc<MetricManager>,
 }
 
 /// An implementation of the Buffer struct which allows Buffers
@@ -28,7 +36,7 @@ impl Buffer {
     ///
     /// # Returns
     /// A `Buffer` struct to be used with a corresponding listener.
-    pub fn new(bucket_name: &str, capacity: usize) -> Buffer {
+    pub fn new(bucket_name: &str, capacity: usize, metric_manager: Arc<MetricManager>) -> Buffer {
         let retry_policy = ExponentialBackoff::builder().build_with_max_retries(5);
         let retry_middleware = RetryTransientMiddleware::new_with_policy(retry_policy);
         let reqwest_client = ClientBuilder::new(reqwest::Client::new())
@@ -45,6 +53,7 @@ impl Buffer {
             incrementals: Vec::with_capacity(capacity),
             bucket: bucket_name.to_string(),
             capacity,
+            metric_manager,
         }
     }
 
@@ -61,9 +70,11 @@ impl Buffer {
         bucket_name: &str,
         capacity: usize,
         receiver: UnboundedReceiver<DataPacket>,
+        metric_manager: Arc<MetricManager>,
+        cancel_token: CancellationToken,
     ) -> JoinHandle<()> {
-        let buffer = Buffer::new(bucket_name, capacity);
-        tokio::spawn(storage_loop(buffer, receiver))
+        let buffer = Buffer::new(bucket_name, capacity, metric_manager);
+        tokio::spawn(storage_loop(buffer, receiver, cancel_token))
     }
 
     /// A separate function that sorts datapackets by type and pushes it to buffer.
@@ -76,6 +87,7 @@ impl Buffer {
     pub async fn ingest(&mut self, data_packet: DataPacket) -> Result<(), DBError> {
         match &data_packet {
             DataPacket::MI(msg) => {
+                self.metric_manager.packetsize.update(msg.get_size() as u16);
                 let asks = serde_json::to_string(&msg.asks).map_err(DBError::JsonError)?;
                 let bids = serde_json::to_string(&msg.bids).map_err(DBError::JsonError)?;
                 let message = format!(
@@ -90,6 +102,7 @@ impl Buffer {
                 Ok(())
             }
             DataPacket::ST(msg) => {
+                self.metric_manager.packetsize.update(msg.get_size() as u16);
                 let asks = serde_json::to_string(&msg.asks).map_err(DBError::JsonError)?;
                 let bids = serde_json::to_string(&msg.bids).map_err(DBError::JsonError)?;
                 let message = format!(
@@ -103,7 +116,10 @@ impl Buffer {
                 }
                 Ok(())
             }
-            DataPacket::Ping(_) => Ok(()),
+            DataPacket::Ping(msg) => {
+                self.metric_manager.packetsize.update(msg.get_size() as u16);
+                Ok(())
+            }
         }
     }
 
@@ -162,6 +178,12 @@ impl Buffer {
                 Err(DBError::ReqwestMiddlewareError(e))
             }
         }
+    }
+
+    pub async fn shutdown(&self) -> Result<(), DBError> {
+        self.push_to_influx(DataType::MI).await?;
+        self.push_to_influx(DataType::ST).await?;
+        Ok(())
     }
 }
 

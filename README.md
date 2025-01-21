@@ -1,4 +1,4 @@
-# data-storage
+# Librarian
 Multi-exchange market data ingestion and storage service.
 
 ## Storage System

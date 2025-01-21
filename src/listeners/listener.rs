@@ -124,14 +124,14 @@ pub trait Parser {
 }
 
 /// The `SymbolHandler` trait is custom implemented for each exchange and endpoint.
+#[async_trait]
 pub trait SymbolHandler {
     /// Requests all tradeable symbols from an exchange's http endpoint and parses the response.
     ///
     /// # Returns
     /// A result containing a `Value` if the response is valid and contains the necessary symbol data. Else, it will
     /// return a `SymbolError`. The `Value` will contain the necessary string used to subscribe to all symbols.
-    fn get_symbols(
-    ) -> impl std::future::Future<Output = Result<Symbols, SymbolError>> + std::marker::Send;
+    async fn get_symbols() -> Result<Symbols, SymbolError>;
 }
 
 /// The `Symbols` enum is used when returning the result of the `get_symbols` function. This allows for extensibility

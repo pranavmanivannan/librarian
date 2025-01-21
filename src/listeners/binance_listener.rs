@@ -142,6 +142,7 @@ impl Parser for BinanceParser {
     }
 }
 
+#[async_trait]
 impl SymbolHandler for BinanceSymbolHandler {
     /// Requests all tradeable symbols from the Binance http endpoint and parses the response. It then creates a vector
     /// of formated strings. The vector that is returned is then converted into a single string and used when

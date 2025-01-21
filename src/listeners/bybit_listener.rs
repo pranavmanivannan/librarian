@@ -89,6 +89,7 @@ impl Parser for ByBitParser {
     }
 }
 
+#[async_trait]
 impl SymbolHandler for ByBitSymbolHandler {
     /// Requests all tradeable symbols from ByBit's http endpoint and parses the response into a vector of stirng. It
     /// then retains all symbols except OKBUSDT (which errors) and then creates a JSON response containing the
